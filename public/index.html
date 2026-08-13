@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hall Booking Management System - ERP Core</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="d-flex" id="wrapper">
+    <!-- Sidebar -->
+    <div id="sidebar-wrapper">
+        <div class="sidebar-heading d-flex align-items-center gap-2">
+            <i class="bi bi-building-gear text-primary fs-4"></i>
+            <span>Hall Manager ERP</span>
+        </div>
+        <div class="list-group list-group-flush my-3">
+            <a href="#" class="list-group-item active" data-view="dashboard" id="nav-dashboard">
+                <i class="bi bi-speedometer2"></i> Dashboard
+            </a>
+            <a href="#" class="list-group-item" data-view="bookings" id="nav-bookings">
+                <i class="bi bi-calendar-event"></i> Booking List
+            </a>
+            <a href="#" class="list-group-item" data-view="availability" id="nav-availability">
+                <i class="bi bi-clock-history"></i> Hall Availability
+            </a>
+            <a href="#" class="list-group-item" data-view="upcoming" id="nav-upcoming">
+                <i class="bi bi-calendar-range"></i> Upcoming Events
+            </a>
+        </div>
+    </div>
+    <!-- /#sidebar-wrapper -->
+
+    <!-- Page Content -->
+    <div id="page-content-wrapper" class="w-100">
+        <!-- Top Navbar -->
+        <nav class="navbar navbar-expand-lg navbar-custom sticky-top">
+            <div class="container-fluid">
+                <button class="btn btn-outline-secondary border-0 btn-sm me-3" id="menu-toggle">
+                    <i class="bi bi-list fs-5"></i>
+                </button>
+                <h5 class="m-0 fw-bold text-dark d-none d-sm-block" id="page-title">Dashboard</h5>
+
+                <div class="d-flex align-items-center gap-3 ms-auto">
+                    <!-- Role Switcher -->
+                    <div class="dropdown">
+                        <button class="btn btn-light dropdown-toggle border d-flex align-items-center gap-2" type="button" id="roleDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-person-badge"></i>
+                            <span id="current-role-label">Role: Admin</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-sm" aria-labelledby="roleDropdown">
+                            <li><h6 class="dropdown-header">Switch Role Mode</h6></li>
+                            <li><a class="dropdown-item role-option active" href="#" data-role="Admin"><i class="bi bi-shield-lock text-primary me-2"></i> Admin Mode</a></li>
+                            <li><a class="dropdown-item role-option" href="#" data-role="Faculty"><i class="bi bi-mortarboard text-success me-2"></i> Faculty Mode</a></li>
+                        </ul>
+                    </div>
+
+                    <!-- Add Booking Button (Admin Only) -->
+                    <button class="btn btn-primary d-flex align-items-center gap-2" id="btn-add-booking-nav" data-bs-toggle="modal" data-bs-target="#bookingModal">
+                        <i class="bi bi-plus-circle"></i>
+                        <span class="d-none d-md-inline">New Booking</span>
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Body Views -->
+        <div class="container-fluid p-4">
+            
+            <!-- ALERT BANNER FOR FACULTY NOTICE -->
+            <div class="alert alert-info border-0 shadow-sm d-none align-items-center justify-content-between mb-4" id="faculty-notice-banner">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-info-circle-fill fs-5 text-info"></i>
+                    <span><strong>Faculty Read-Only Mode:</strong> You can view schedules, availability, and search events. Admin privileges required to edit bookings or record payments.</span>
+                </div>
+            </div>
+
+            <!-- 1. DASHBOARD VIEW -->
+            <div id="view-dashboard" class="content-view">
+                <!-- Compact Dashboard Header Banner -->
+                <div class="d-flex justify-content-between align-items-center mb-3 compact-summary-banner">
+                    <div>
+                        <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-speedometer2 text-primary me-2"></i>Dashboard Overview</h6>
+                        <span class="text-muted small">Real-time operational metrics & financial summaries</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span id="dashboard-refresh-status" class="small text-muted d-none" role="status"><span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Refreshing…</span>
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2 fw-semibold" id="today-date-badge">Today</span>
+                    </div>
+                </div>
+
+                <!-- Operational Stats Row -->
+                <div class="row g-3 mb-3">
+                    <div class="col-12 col-sm-6 col-md-3">
+                        <div class="card stat-card p-3 h-100">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="stat-icon icon-blue">
+                                    <i class="bi bi-calendar-check"></i>
+                                </div>
+                                <div>
+                                    <span class="text-muted small fw-medium">Total Bookings</span>
+                                    <h3 class="fw-bold mb-0" id="stat-total">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-sm-6 col-md-3">
+                        <div class="card stat-card p-3 h-100">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="stat-icon icon-emerald">
+                                    <i class="bi bi-building"></i>
+                                </div>
+                                <div>
+                                    <span class="text-muted small fw-medium">Hall 1 Status Today</span>
+                                    <h5 class="fw-bold mb-0 text-truncate" id="stat-hall1">Available</h5>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-sm-6 col-md-3">
+                        <div class="card stat-card p-3 h-100">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="stat-icon icon-purple">
+                                    <i class="bi bi-building"></i>
+                                </div>
+                                <div>
+                                    <span class="text-muted small fw-medium">Hall 2 Status Today</span>
+                                    <h5 class="fw-bold mb-0 text-truncate" id="stat-hall2">Available</h5>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-sm-6 col-md-3">
+                        <div class="card stat-card p-3 h-100">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="stat-icon icon-amber">
+                                    <i class="bi bi-clock-history"></i>
+                                </div>
+                                <div>
+                                    <span class="text-muted small fw-medium">Today's Events</span>
+                                    <h3 class="fw-bold mb-0" id="stat-today-count">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Financial Summary KPI Cards -->
+                <div class="row g-3 mb-4">
+                    <div class="col-12 col-sm-6 col-md-3">
+                        <div class="card stat-card p-3 h-100 bg-white">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <span class="text-muted small fw-medium">Today's Collection</span>
+                                    <h4 class="fw-bold text-success mb-0" id="stat-today-collection">₹0</h4>
+                                </div>
+                                <div class="p-2 bg-success-subtle text-success rounded-3"><i class="bi bi-cash-coin fs-4"></i></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-sm-6 col-md-3">
+                        <div class="card stat-card p-3 h-100 bg-white">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <span class="text-muted small fw-medium">Pending Rent Dues</span>
+                                    <h4 class="fw-bold text-warning mb-0" id="stat-pending-payments">₹0</h4>
+                                </div>
+                                <div class="p-2 bg-warning-subtle text-warning rounded-3"><i class="bi bi-hourglass-split fs-4"></i></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-sm-6 col-md-3">
+                        <div class="card stat-card p-3 h-100 bg-white">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <span class="text-muted small fw-medium">Total Rent Income</span>
+                                    <h4 class="fw-bold text-primary mb-0" id="stat-total-revenue">₹0</h4>
+                                </div>
+                                <div class="p-2 bg-primary-subtle text-primary rounded-3"><i class="bi bi-graph-up-arrow fs-4"></i></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-sm-6 col-md-3">
+                        <div class="card stat-card p-3 h-100 bg-white">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <span class="text-muted small fw-medium">Deposits Held in Hand</span>
+                                    <h4 class="fw-bold text-purple mb-0" style="color: #7c3aed;" id="stat-deposits-held">₹0</h4>
+                                </div>
+                                <div class="p-2 bg-purple-subtle text-purple rounded-3" style="background:#f3e8ff; color:#6b21a8;"><i class="bi bi-shield-check fs-4"></i></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dashboard Details Grid -->
+                <div class="row g-4">
+                    <!-- Today's Schedule Overview -->
+                    <div class="col-12 col-lg-8">
+                        <div class="card border-0 shadow-sm rounded-4 p-4 h-100">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="fw-bold mb-0"><i class="bi bi-calendar-event text-primary me-2"></i>Today's Event Schedule</h6>
+                                <span class="badge bg-light text-muted border small"><i class="bi bi-clock me-1"></i>Real-time</span>
+                            </div>
+                            <div id="today-events-container" class="vstack gap-2">
+                                <!-- Dynamic JS Population -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Activity Feed -->
+                    <div class="col-12 col-lg-4">
+                        <div class="card border-0 shadow-sm rounded-4 p-4 h-100">
+                            <h6 class="fw-bold mb-3"><i class="bi bi-activity text-primary me-2"></i>Recent Activity Log</h6>
+                            <div id="recent-activity-container" class="vstack gap-3">
+                                <!-- Dynamic JS Population -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. BOOKINGS LIST VIEW -->
+            <div id="view-bookings" class="content-view d-none">
+                <!-- Filters & Search Toolbar -->
+                <div class="card border-0 shadow-sm rounded-4 p-3 mb-3 booking-filters-card">
+                    <div class="row g-2 align-items-center">
+                        <div class="col-12 col-md-4">
+                            <div class="input-group">
+                                <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                                <input type="text" class="form-control border-start-0" id="filter-search" placeholder="Search customer, event, mobile, ID...">
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <input type="date" class="form-control" id="filter-date">
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <select class="form-select" id="filter-hall">
+                                <option value="All">All Halls</option>
+                                <option value="Hall 1">Hall 1</option>
+                                <option value="Hall 2">Hall 2</option>
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <select class="form-select" id="filter-status">
+                                <option value="All">All Statuses</option>
+                                <option value="Draft">Draft (Enquiry)</option>
+                                <option value="Booked">Booked</option>
+                                <option value="Confirmed">Confirmed</option>
+                                <option value="Completed">Completed</option>
+                                <option value="Cancelled">Cancelled</option>
+                                <option value="Archived">Archived</option>
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <select class="form-select text-danger border-danger-subtle fw-semibold" id="filter-booking-dues">
+                                <option value="All">All Dues Statuses</option>
+                                <option value="DuesPending">⚠️ Rent Dues Pending</option>
+                                <option value="CompletedDuesPending">⚠️ Completed Events with Dues</option>
+                                <option value="FullySettled">✅ Fully Settled</option>
+                                <option value="DepositHeld">🛡️ Deposit Held</option>
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-1">
+                            <button class="btn btn-outline-secondary w-100" id="btn-reset-filters" title="Reset Filters">
+                                <i class="bi bi-arrow-counterclockwise"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bookings Table Card -->
+                <div class="card border-0 shadow-sm rounded-4">
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover table-custom mb-0">
+                                <thead>
+                                    <tr>
+                                        <th class="ps-4">Booking ID</th>
+                                        <th>Customer Details</th>
+                                        <th>Event & Hall</th>
+                                        <th>Timing & Slot</th>
+                                        <th>Booking Status</th>
+                                        <th class="text-end" style="min-width:90px;">Net Rent</th>
+                                        <th class="text-end" style="min-width:80px;">Paid</th>
+                                        <th class="text-end" style="min-width:80px;">Rent Due</th>
+                                        <th class="text-end" style="min-width:95px;">Deposit Held</th>
+                                        <th class="text-end pe-4 action-col">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="bookings-table-body">
+                                    <!-- Dynamic JS Population -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. HALL AVAILABILITY VIEW -->
+            <div id="view-availability" class="content-view d-none">
+                <div class="card border-0 shadow-sm rounded-4 p-3 mb-4">
+                    <div class="d-flex align-items-center gap-3">
+                        <label for="avail-date-picker" class="fw-bold text-nowrap"><i class="bi bi-calendar3 me-2 text-primary"></i>Check Availability Date:</label>
+                        <input type="date" class="form-control max-w-200" id="avail-date-picker">
+                    </div>
+                </div>
+
+                <div class="row g-4">
+                    <!-- Hall 1 Schedule Card -->
+                    <div class="col-12 col-md-6">
+                        <div class="card border-0 shadow-sm rounded-4 p-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="fw-bold mb-0 text-primary"><i class="bi bi-building me-2"></i>Hall 1</h5>
+                                <span class="badge bg-primary-subtle text-primary fw-semibold" id="hall1-count-badge">0 Bookings</span>
+                            </div>
+                            <hr class="my-2">
+                            <div id="hall1-slots-container" class="vstack gap-2 my-3">
+                                <!-- Dynamic JS Population -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Hall 2 Schedule Card -->
+                    <div class="col-12 col-md-6">
+                        <div class="card border-0 shadow-sm rounded-4 p-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="fw-bold mb-0 text-purple" style="color: #7c3aed;"><i class="bi bi-building me-2"></i>Hall 2</h5>
+                                <span class="badge bg-purple-subtle text-purple fw-semibold" style="background:#f3e8ff; color:#6b21a8;" id="hall2-count-badge">0 Bookings</span>
+                            </div>
+                            <hr class="my-2">
+                            <div id="hall2-slots-container" class="vstack gap-2 my-3">
+                                <!-- Dynamic JS Population -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. UPCOMING EVENTS VIEW -->
+            <div id="view-upcoming" class="content-view d-none">
+                <div class="card border-0 shadow-sm rounded-4 p-4">
+                    <h5 class="fw-bold mb-3"><i class="bi bi-calendar-range text-primary me-2"></i>Upcoming Events Schedule</h5>
+                    <div id="upcoming-view-container" class="row g-3">
+                        <!-- Dynamic JS -->
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+    <!-- /#page-content-wrapper -->
+</div>
+
+<!-- ========================================== -->
+<!-- MODAL: ADD / EDIT BOOKING -->
+<!-- ========================================== -->
+<div class="modal fade" id="bookingModal" tabindex="-1" aria-labelledby="bookingModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-bottom-0 pb-0">
+                <h5 class="modal-title fw-bold" id="bookingModalLabel"><i class="bi bi-plus-circle-fill text-primary me-2"></i>Create New Booking</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                
+                <!-- CONFLICT WARNING ALERT BANNER -->
+                <div class="alert alert-danger border-0 d-none align-items-center gap-2 mb-3" id="conflict-alert" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+                    <div id="conflict-alert-msg"><strong>Hall already booked for this time.</strong></div>
+                </div>
+
+                <form id="bookingForm" class="row g-3">
+                    <input type="hidden" id="form-booking-id">
+
+                    <div class="col-12 col-md-6">
+                        <label for="input-customerName" class="form-label fw-semibold">Customer / Organizer Name *</label>
+                        <input type="text" class="form-control" id="input-customerName" placeholder="e.g. Dr. A. Sharma" required>
+                    </div>
+
+                    <div class="col-12 col-md-6">
+                        <label for="input-mobileNumber" class="form-label fw-semibold">Mobile Number *</label>
+                        <input type="tel" class="form-control" id="input-mobileNumber" placeholder="e.g. 9876543210" required>
+                    </div>
+
+                    <div class="col-12">
+                        <label for="input-eventName" class="form-label fw-semibold">Event Name / Purpose *</label>
+                        <input type="text" class="form-control" id="input-eventName" placeholder="e.g. AI & Robotics National Seminar" required>
+                    </div>
+
+                    <div class="col-12 col-md-3">
+                        <label for="input-hall" class="form-label fw-semibold">Select Hall *</label>
+                        <select class="form-select" id="input-hall" required>
+                            <option value="Hall 1">Hall 1</option>
+                            <option value="Hall 2">Hall 2</option>
+                        </select>
+                    </div>
+
+                    <div class="col-12 col-md-3">
+                        <label for="input-bookingDate" class="form-label fw-semibold">Booking Date *</label>
+                        <input type="date" class="form-control" id="input-bookingDate" required>
+                    </div>
+
+                    <div class="col-12 col-md-3">
+                        <label for="input-status" class="form-label fw-semibold">Booking Status *</label>
+                        <select class="form-select" id="input-status" required>
+                            <option value="Draft">Draft (Enquiry)</option>
+                            <option value="Booked">Booked</option>
+                            <option value="Confirmed" selected>Confirmed</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Cancelled">Cancelled</option>
+                            <option value="Archived">Archived</option>
+                        </select>
+                    </div>
+
+                    <div class="col-6 col-md-3">
+                        <label for="input-startTime" class="form-label fw-semibold">Start Time *</label>
+                        <input type="time" class="form-control" id="input-startTime" required>
+                    </div>
+
+                    <div class="col-6 col-md-3">
+                        <label for="input-endTime" class="form-label fw-semibold">End Time *</label>
+                        <input type="time" class="form-control" id="input-endTime" required>
+                    </div>
+
+                    <!-- FINANCIAL CONTRACT BREAKDOWN -->
+                    <div class="col-12"><hr class="my-1"><h6 class="fw-bold text-primary mb-0"><i class="bi bi-calculator me-2"></i>Financial Contract Details</h6></div>
+
+                    <div class="col-6 col-md-3">
+                        <label for="input-hallRent" class="form-label fw-semibold">Hall Rent (₹) *</label>
+                        <input type="number" class="form-control" id="input-hallRent" placeholder="10000" min="0" required>
+                    </div>
+
+                    <div class="col-6 col-md-3">
+                        <label for="input-discount" class="form-label fw-semibold">Initial Discount (₹)</label>
+                        <input type="number" class="form-control" id="input-discount" placeholder="0" min="0" value="0">
+                    </div>
+
+                    <div class="col-6 col-md-3">
+                        <label for="input-extraCharges" class="form-label fw-semibold">Initial Extras (₹)</label>
+                        <input type="number" class="form-control" id="input-extraCharges" placeholder="0" min="0" value="0">
+                    </div>
+
+                    <div class="col-6 col-md-3">
+                        <label for="input-securityDeposit" class="form-label fw-semibold">Security Deposit (₹) <span class="text-muted small fw-normal">(optional)</span></label>
+                        <input type="number" class="form-control" id="input-securityDeposit" placeholder="0" min="0" value="0">
+                    </div>
+
+                    <div class="col-12">
+                        <label for="input-notes" class="form-label fw-semibold">Notes / Equipment Requirements</label>
+                        <textarea class="form-control" id="input-notes" rows="2" placeholder="e.g. Need podium mic, projector, audio setup."></textarea>
+                    </div>
+
+                    <div class="col-12 text-end pt-3 border-top mt-4">
+                        <button type="button" class="btn btn-light me-2" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary px-4" id="btn-save-booking">Save Booking</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- MODAL: UNIFIED BOOKING DETAILS & FINANCIAL LEDGER -->
+<!-- ========================================== -->
+<div class="modal fade" id="viewBookingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-bottom-0 pb-0">
+                <h5 class="modal-title fw-bold" id="viewBookingModalTitle"><i class="bi bi-info-circle-fill text-primary me-2"></i>Booking Details & Financial Ledger</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4" id="view-booking-modal-body">
+                <!-- Dynamic Population (4 Badges, Event Details, Financial Ledger, Activity Timeline) -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- MODAL: DELETE CONFIRMATION WITH 3 OPTIONS -->
+<!-- ========================================== -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 text-center p-4">
+            <div class="mb-3 text-warning" id="delete-modal-icon">
+                <i class="bi bi-exclamation-triangle-fill display-4"></i>
+            </div>
+            <h5 class="fw-bold mb-2" id="delete-modal-title">Delete Booking Options</h5>
+            <p class="text-muted small mb-3" id="delete-modal-msg">Select how you would like to handle this booking deletion:</p>
+            <div class="alert alert-light border small text-start mb-4" id="delete-modal-info">
+                <div><i class="bi bi-archive text-warning me-1"></i> <strong>Archive (Soft Delete):</strong> Preserves audit & payment history, frees slot, and allows <em>Unarchive</em> recovery.</div>
+                <div class="mt-2"><i class="bi bi-trash3 text-danger me-1"></i> <strong>Permanent Delete (Hard Delete):</strong> Erases booking permanently. <em>(Blocked if payment ledger records exist)</em></div>
+            </div>
+            <input type="hidden" id="delete-target-id">
+            <div class="d-flex flex-column flex-sm-row justify-content-center gap-2" id="delete-modal-actions">
+                <button type="button" class="btn btn-warning px-3 d-flex align-items-center justify-content-center gap-1" id="btn-action-archive-delete">
+                    <i class="bi bi-archive"></i> Archive Booking (Soft Delete)
+                </button>
+                <button type="button" class="btn btn-danger px-3 d-flex align-items-center justify-content-center gap-1" id="btn-confirm-hard-delete">
+                    <i class="bi bi-trash3"></i> Permanently Delete (Hard Delete)
+                </button>
+                <button type="button" class="btn btn-light px-3" data-bs-dismiss="modal">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- MODAL: QUICK POST-BOOKING EXTRA CHARGE -->
+<!-- ========================================== -->
+<div class="modal fade" id="extraChargeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-bottom-0">
+                <h5 class="modal-title fw-bold text-primary"><i class="bi bi-plus-circle me-2"></i>Add Post-Booking Extra Charge</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="p-3 bg-light rounded-3 mb-3 small" id="quick-charge-booking-info">
+                    <strong>Booking ID:</strong> <span id="quick-charge-booking-id"></span>
+                </div>
+                <form id="quick-form-extra-charge" class="row g-3">
+                    <input type="hidden" id="quick-charge-target-id">
+                    <div class="col-12">
+                        <label for="quick-charge-category" class="form-label fw-semibold">Charge Category *</label>
+                        <select class="form-select" id="quick-charge-category" required>
+                            <option value="Cleaning Charge">Cleaning Charge</option>
+                            <option value="Decoration Charge">Decoration Charge</option>
+                            <option value="Electricity Charge">Electricity Charge</option>
+                            <option value="Damage Charge">Damage Charge</option>
+                            <option value="Other Charge">Other Charge</option>
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <label for="quick-charge-amount" class="form-label fw-semibold">Amount (₹) *</label>
+                        <input type="number" class="form-control" id="quick-charge-amount" placeholder="e.g. 500" min="1" required>
+                    </div>
+                    <div class="col-12">
+                        <label for="quick-charge-remarks" class="form-label fw-semibold">Remarks / Explanation</label>
+                        <input type="text" class="form-control" id="quick-charge-remarks" placeholder="e.g. Post-event hall deep cleaning fee">
+                    </div>
+                    <div class="col-12 text-end pt-3 border-top mt-3">
+                        <button type="button" class="btn btn-light me-2" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary px-4"><i class="bi bi-check-circle me-1"></i>Add Extra Charge</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- MODAL: QUICK POST-BOOKING DISCOUNT -->
+<!-- ========================================== -->
+<div class="modal fade" id="discountModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-bottom-0">
+                <h5 class="modal-title fw-bold text-success"><i class="bi bi-percent me-2"></i>Approve Post-Booking Discount</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="p-3 bg-light rounded-3 mb-3 small" id="quick-discount-booking-info">
+                    <strong>Booking ID:</strong> <span id="quick-discount-booking-id"></span>
+                </div>
+                <form id="quick-form-discount" class="row g-3">
+                    <input type="hidden" id="quick-discount-target-id">
+                    <div class="col-12">
+                        <label for="quick-discount-amount" class="form-label fw-semibold">Discount Amount (₹) *</label>
+                        <input type="number" class="form-control" id="quick-discount-amount" placeholder="e.g. 1000" min="1" required>
+                    </div>
+                    <div class="col-12">
+                        <label for="quick-discount-reason" class="form-label fw-semibold">Approval Reason *</label>
+                        <input type="text" class="form-control" id="quick-discount-reason" placeholder="e.g. Special institutional management discount" required>
+                    </div>
+                    <div class="col-12">
+                        <label for="quick-discount-approvedBy" class="form-label fw-semibold">Approved By *</label>
+                        <input type="text" class="form-control" id="quick-discount-approvedBy" value="Management - Admin" required>
+                    </div>
+                    <div class="col-12 text-end pt-3 border-top mt-3">
+                        <button type="button" class="btn btn-light me-2" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-success px-4"><i class="bi bi-check-circle me-1"></i>Apply Discount</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- MODAL: RECORD PAYMENT TRANSACTION -->
+<!-- ========================================== -->
+<div class="modal fade" id="paymentModal" tabindex="-1" aria-labelledby="paymentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-bottom-0">
+                <h5 class="modal-title fw-bold" id="paymentModalLabel"><i class="bi bi-cash-stack text-success me-2"></i>Record Payment Transaction</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <!-- Customer Selection Dropdown inside Modal -->
+                <div class="mb-3">
+                    <label for="pay-modal-booking-select" class="form-label fw-semibold text-primary"><i class="bi bi-person-check me-1"></i>Select Customer / Booking Record *</label>
+                    <select class="form-select border-primary" id="pay-modal-booking-select" required>
+                        <option value="">-- Select a Customer / Booking --</option>
+                    </select>
+                </div>
+
+                <!-- Settled Notice Banner -->
+                <div class="alert alert-success border-0 shadow-sm d-none align-items-center gap-2 mb-3" id="pay-settled-alert">
+                    <i class="bi bi-check-circle-fill fs-5"></i>
+                    <div><strong>Fully Settled:</strong> No payment or deposit actions available — this booking is fully settled.</div>
+                </div>
+
+                <!-- Summary Header -->
+                <div class="p-3 bg-light rounded-3 mb-3 d-none" id="pay-modal-booking-summary">
+                    <div class="fw-bold text-primary" id="pay-modal-booking-id">BOOK-XXXX</div>
+                    <div class="small text-muted" id="pay-modal-customer">Customer Name</div>
+                    <div class="d-flex justify-content-between mt-2 pt-2 border-top small">
+                        <span>Net Rent: <strong id="pay-modal-total">₹0</strong></span>
+                        <span>Paid: <strong class="text-success" id="pay-modal-paid">₹0</strong></span>
+                        <span>Balance Rent Due: <strong id="pay-modal-balance">₹0</strong></span>
+                    </div>
+                </div>
+
+                <!-- Overpayment Handling Section -->
+                <div class="alert alert-warning border-0 rounded-3 p-3 mb-3 d-none" id="pay-overpayment-section" style="background-color: #fffbeb; border: 1px solid #fde68a;">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div>
+                            <div class="fw-bold text-dark"><i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>Overpayment Handling</div>
+                            <div class="small text-muted mb-0">Customer has overpaid by <strong class="text-dark" id="pay-overpayment-amount">₹0</strong>.</div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-danger fw-semibold py-1.5 px-3" id="btn-pay-refund-excess">
+                            <i class="bi bi-arrow-counterclockwise me-1"></i>Refund Excess Amount
+                        </button>
+                    </div>
+                </div>
+
+                <form id="paymentForm" class="row g-3">
+                    <input type="hidden" id="pay-input-bookingId">
+
+                    <div class="col-12 col-md-6">
+                        <label for="pay-input-category" class="form-label fw-semibold">Payment Category *</label>
+                        <select class="form-select" id="pay-input-category" required>
+                            <option value="Rent Payment">Rent Payment</option>
+                            <option value="Advance">Advance</option>
+                            <option value="Installment">Installment</option>
+                            <option value="Security Deposit">Security Deposit</option>
+                        </select>
+                    </div>
+
+                    <div class="col-12 col-md-6">
+                        <label for="pay-input-amount" class="form-label fw-semibold">Amount (₹) *</label>
+                        <input type="number" class="form-control" id="pay-input-amount" placeholder="e.g. 2000" min="1" required>
+                    </div>
+
+                    <div class="col-12 col-md-6">
+                        <label for="pay-input-method" class="form-label fw-semibold">Payment Method *</label>
+                        <select class="form-select" id="pay-input-method" required>
+                            <option value="Cash">Cash</option>
+                            <option value="UPI">UPI (GPay/PhonePe/Paytm)</option>
+                            <option value="Credit Card">Credit Card</option>
+                            <option value="Debit Card">Debit Card</option>
+                            <option value="Cheque">Cheque</option>
+                            <option value="Bank Transfer">Bank Transfer (NEFT/RTGS/IMPS)</option>
+                        </select>
+                    </div>
+
+                    <div class="col-12 col-md-6">
+                        <label for="pay-input-collector" class="form-label fw-semibold">Collected By *</label>
+                        <input type="text" class="form-control" id="pay-input-collector" value="Admin" required>
+                    </div>
+
+                    <div class="col-12">
+                        <label for="pay-input-ref" class="form-label fw-semibold">Reference Number (UTR / Cheque No / Card Ref)</label>
+                        <input type="text" class="form-control" id="pay-input-ref" placeholder="e.g. UTR129381923 / Cheque #00012">
+                    </div>
+
+                    <div class="col-12">
+                        <label for="pay-input-remarks" class="form-label fw-semibold">Transaction Remarks</label>
+                        <textarea class="form-control" id="pay-input-remarks" rows="2" placeholder="e.g. Advance cash received at counter."></textarea>
+                    </div>
+
+                    <div class="col-12 text-end pt-3 border-top mt-3">
+                        <button type="button" class="btn btn-light me-2" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-success px-4"><i class="bi bi-check-circle me-1"></i>Record Transaction</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- MODAL: DEPOSIT MANAGEMENT -->
+<!-- ========================================== -->
+<div class="modal fade" id="depositActionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-bottom-0">
+                <h5 class="modal-title fw-bold"><i class="bi bi-shield-check text-primary me-2"></i>Security Deposit Management</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <!-- Status / Info Banner (dynamic — set by JS) -->
+                <div class="alert alert-warning border-0 shadow-sm d-none align-items-center gap-2 mb-3" id="dep-settled-alert">
+                    <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+                    <div><strong>Action Restricted.</strong></div>
+                </div>
+
+                <!-- Contextual Deposit Info Message (dynamic — set by JS) -->
+                <div id="dep-info-message" class="d-none"></div>
+
+                <form id="depositForm" class="row g-3">
+                    <input type="hidden" id="dep-input-bookingId">
+
+                    <div class="col-12">
+                        <label for="dep-input-action" class="form-label fw-semibold">Select Deposit Action *</label>
+                        <select class="form-select" id="dep-input-action" required>
+                            <option value="receive">Receive / Collect Security Deposit from Customer</option>
+                            <option value="adjust">Adjust Deposit into Hall Rent (Reduce Outstanding Dues)</option>
+                            <option value="return">Refund Deposit back to Customer</option>
+                            <option value="forfeit">Forfeit Deposit (Damages / Penalty)</option>
+                        </select>
+                    </div>
+
+                    <div class="col-12">
+                        <label for="dep-input-amount" class="form-label fw-semibold">Amount (₹) *</label>
+                        <input type="number" class="form-control" id="dep-input-amount" min="1" required>
+                    </div>
+
+                    <div class="col-12">
+                        <label for="dep-input-remarks" class="form-label fw-semibold">Reason / Remarks *</label>
+                        <textarea class="form-control" id="dep-input-remarks" rows="2" placeholder="e.g. Hall verified in good condition, full deposit refunded." required></textarea>
+                    </div>
+
+                    <div class="col-12 text-end pt-3 border-top mt-3">
+                        <button type="button" class="btn btn-light me-2" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary px-4"><i class="bi bi-check-lg me-1"></i>Process Action</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- MODAL: VOID RECEIPT -->
+<!-- ========================================== -->
+<div class="modal fade" id="voidModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-bottom-0">
+                <h5 class="modal-title fw-bold text-danger"><i class="bi bi-slash-circle me-2"></i>Void Payment Receipt</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="alert alert-warning border-0 small mb-3">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                    Voiding a receipt marks it invalid in the ledger and recalculates balances. The receipt record and audit log will remain preserved permanently.
+                </div>
+                <form id="voidForm" class="row g-3">
+                    <input type="hidden" id="void-input-rcpt">
+
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Receipt Number to Void</label>
+                        <input type="text" class="form-control bg-light" id="void-display-rcpt" readonly>
+                    </div>
+
+                    <div class="col-12">
+                        <label for="void-input-reason" class="form-label fw-semibold">Reason for Voiding *</label>
+                        <textarea class="form-control" id="void-input-reason" rows="2" placeholder="e.g. Cheque bounced / Wrong payment category selected by staff." required></textarea>
+                    </div>
+
+                    <div class="col-12">
+                        <label for="void-input-approver" class="form-label fw-semibold">Approved By *</label>
+                        <input type="text" class="form-control" id="void-input-approver" value="Manager - Admin" required>
+                    </div>
+
+                    <div class="col-12 text-end pt-3 border-top mt-3">
+                        <button type="button" class="btn btn-light me-2" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-danger px-4"><i class="bi bi-slash-circle me-1"></i>Confirm Void Receipt</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- MODAL: PRINTABLE OFFICIAL RECEIPT (HBR FORMAT) -->
+<!-- ========================================== -->
+<div class="modal fade" id="receiptModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg rounded-4 p-2">
+            <div class="modal-header border-bottom-0">
+                <h5 class="modal-title fw-bold"><i class="bi bi-printer text-primary me-2"></i>Official Payment Receipt</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4" id="receipt-printable-area">
+                <!-- Dynamic Printable Receipt Template -->
+            </div>
+            <div class="modal-footer border-top-0">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary px-4" onclick="window.print()"><i class="bi bi-printer me-2"></i>Print Receipt</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- TOAST CONTAINER FOR NOTIFICATIONS -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="liveToast" class="toast border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body fw-medium" id="toast-message">
+                Notification message
+            </div>
+            <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
+<!-- Bootstrap 5 JS Bundle with Popper -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Client App JavaScript -->
+<script src="js/app.js"></script>
+
+</body>
+</html>

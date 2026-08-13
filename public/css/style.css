@@ -1,0 +1,491 @@
+/* Custom Design System & ERP Aesthetics for Hall Booking Management System */
+
+:root {
+    --primary-color: #4f46e5;
+    --primary-hover: #4338ca;
+    --secondary-color: #0fb5c4;
+    --dark-bg: #0f172a;
+    --sidebar-bg: #1e293b;
+    --card-bg: #ffffff;
+    --text-primary: #1e293b;
+    --text-muted: #64748b;
+    --border-color: #e2e8f0;
+    --accent-hall1: #2563eb;
+    --accent-hall2: #7c3aed;
+}
+
+body {
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #f8fafc;
+    color: var(--text-primary);
+    overflow-x: hidden;
+}
+
+/* Sidebar Styling */
+#sidebar-wrapper {
+    min-height: 100vh;
+    width: 260px;
+    margin-left: 0;
+    background-color: var(--sidebar-bg);
+    color: #f1f5f9;
+    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1000;
+    flex-shrink: 0;
+}
+
+#sidebar-wrapper.toggled {
+    margin-left: -260px;
+}
+
+#page-content-wrapper {
+    min-width: 0;
+    flex: 1;
+    width: 100%;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (max-width: 768px) {
+    #sidebar-wrapper {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        margin-left: -260px;
+    }
+    #sidebar-wrapper.toggled {
+        margin-left: 0;
+    }
+}
+
+/* Status Select Dropdown styling in Cards & Schedule Widgets */
+.status-select-control {
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 0.25rem 0.6rem;
+    border-radius: 20px;
+    border: 1px solid var(--border-color);
+    background-color: #ffffff;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.status-select-control:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(79, 70, 229, 0.15);
+    outline: none;
+}
+
+.status-select-control.status-Confirmed { background-color: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.status-select-control.status-Completed { background-color: #f1f5f9; color: #475569; border-color: #cbd5e1; }
+.status-select-control.status-Cancelled { background-color: #fef2f2; color: #b91c1c; border-color: #fca5a5; }
+.status-select-control.status-Archived { background-color: #fefce8; color: #a16207; border-color: #fef08a; }
+.status-select-control.status-Draft { background-color: #f3e8ff; color: #6b21a8; border-color: #d8b4fe; }
+
+#sidebar-wrapper .sidebar-heading {
+    padding: 1.5rem 1.25rem;
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#sidebar-wrapper .list-group-item {
+    padding: 0.85rem 1.25rem;
+    color: #94a3b8;
+    background-color: transparent;
+    border: none;
+    font-weight: 500;
+    border-radius: 8px;
+    margin: 4px 12px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+#sidebar-wrapper .list-group-item:hover,
+#sidebar-wrapper .list-group-item.active {
+    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+#sidebar-wrapper .list-group-item.active {
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+
+/* Top Navigation Bar */
+.navbar-custom {
+    background-color: #ffffff;
+    border-bottom: 1px solid var(--border-color);
+    padding: 0.85rem 1.5rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+/* Stats Cards */
+.stat-card {
+    border: none;
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.07);
+}
+
+.stat-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+}
+
+.icon-blue { background-color: rgba(59, 130, 246, 0.12); color: #2563eb; }
+.icon-emerald { background-color: rgba(16, 185, 129, 0.12); color: #059669; }
+.icon-purple { background-color: rgba(139, 92, 246, 0.12); color: #7c3aed; }
+.icon-amber { background-color: rgba(245, 158, 11, 0.12); color: #d97706; }
+
+/* Status Badges */
+.badge-status {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.78rem;
+    display: inline-block;
+}
+
+.badge-status.Draft { background-color: #fef3c7; color: #92400e; }
+.badge-status.Booked { background-color: #e0f2fe; color: #0369a1; }
+.badge-status.Confirmed { background-color: #d1fae5; color: #065f46; }
+.badge-status.Completed { background-color: #f3f4f6; color: #374151; }
+.badge-status.Cancelled { background-color: #fee2e2; color: #991b1b; }
+.badge-status.Archived { background-color: #e2e8f0; color: #475569; }
+
+/* Payment Status Badges */
+.badge-pay {
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.78rem;
+    display: inline-block;
+}
+
+.badge-pay.Unpaid { background-color: #fee2e2; color: #991b1b; }
+.badge-pay.Advance-Paid { background-color: #e0f2fe; color: #0369a1; }
+.badge-pay.Partially-Paid { background-color: #fef3c7; color: #92400e; }
+.badge-pay.Fully-Paid { background-color: #d1fae5; color: #065f46; }
+.badge-pay.Overpaid { background-color: #f3e8ff; color: #6b21a8; border: 1px solid #c084fc; }
+.badge-pay.Refund-Pending { background-color: #ffedd5; color: #c2410c; }
+.badge-pay.Cancelled { background-color: #f1f5f9; color: #64748b; }
+.badge-pay.Archived { background-color: #e2e8f0; color: #475569; }
+
+/* Deposit Status Badges */
+.badge-dep {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 0.75rem;
+    display: inline-block;
+}
+.badge-dep.Deposit-Pending { background-color: #fff7ed; color: #c2410c; }
+.badge-dep.Deposit-Received-\(Held\) { background-color: #ecfdf5; color: #047857; }
+.badge-dep.Deposit-Returned { background-color: #f3e8ff; color: #6b21a8; }
+.badge-dep.Deposit-Forfeited { background-color: #ffe4e6; color: #be123c; }
+.badge-dep.Deposit-Adjusted { background-color: #e0e7ff; color: #3730a3; }
+.badge-dep.N\/A { background-color: #f1f5f9; color: #94a3b8; }
+
+/* Hall Badges */
+.hall-pill {
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+}
+
+.hall-pill.hall-1 {
+    background-color: #e0f2fe;
+    color: #0369a1;
+}
+
+.hall-pill.hall-2 {
+    background-color: #f3e8ff;
+    color: #6b21a8;
+}
+
+/* Vertical Timeline Stepper */
+.timeline-v-stepper {
+    position: relative;
+    padding-left: 28px;
+}
+
+.timeline-v-stepper::before {
+    content: '';
+    position: absolute;
+    top: 8px;
+    bottom: 8px;
+    left: 11px;
+    width: 2px;
+    background-color: #e2e8f0;
+}
+
+.timeline-v-item {
+    position: relative;
+    margin-bottom: 10px;
+}
+
+.timeline-v-badge {
+    position: absolute;
+    left: -28px;
+    top: 2px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background-color: #4f46e5;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    z-index: 1;
+}
+
+.timeline-v-content {
+    background: #f8fafc;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+}
+
+/* Data Table Customization */
+.table-custom {
+    vertical-align: middle;
+}
+
+.table-custom th {
+    background-color: #f8fafc;
+    color: #64748b;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 700;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.table-custom td {
+    padding: 1rem 0.75rem;
+}
+
+/* Toast Notifications */
+.toast-container {
+    z-index: 1100;
+}
+
+/* Receipt Print & Void Watermark Styling */
+.receipt-void-watermark {
+    position: absolute;
+    top: 35%;
+    left: 15%;
+    right: 15%;
+    transform: rotate(-25deg);
+    font-size: 4rem;
+    font-weight: 900;
+    color: rgba(239, 68, 68, 0.25);
+    border: 8px dashed rgba(239, 68, 68, 0.3);
+    text-align: center;
+    padding: 15px;
+    text-transform: uppercase;
+    letter-spacing: 6px;
+    pointer-events: none;
+}
+
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    #receiptModal, #receiptModal * {
+        visibility: visible;
+    }
+    #receiptModal {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+    }
+    .modal-footer, .btn-close {
+        display: none !important;
+    }
+}
+
+@media (max-width: 768px) {
+    #sidebar-wrapper {
+        margin-left: -260px;
+    }
+    #sidebar-wrapper.toggled {
+        margin-left: 0;
+    }
+}
+
+/* Booking List Action Dropdown Menu Viewport & Scrollbar Enhancements */
+.table-responsive {
+    position: relative;
+}
+
+.table .dropdown-menu {
+    max-height: 75vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-width: 220px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05) !important;
+    z-index: 1050;
+}
+
+.table .dropdown-menu::-webkit-scrollbar {
+    width: 5px;
+}
+
+.table .dropdown-menu::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 10px;
+}
+
+.table .dropdown-menu::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+}
+
+.table .dropdown-menu::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+.table .dropdown-item {
+    font-size: 0.85rem;
+    padding: 0.55rem 1rem;
+    font-weight: 500;
+    transition: all 0.15s ease;
+}
+
+.table .dropdown-item:hover {
+    background-color: #f1f5f9;
+}
+
+/* Compact Modal & Tab Layout Cleanup */
+#viewBookingModal .modal-body {
+    padding: 1.25rem !important;
+}
+
+#viewBookingModal .nav-tabs-custom {
+    border-bottom: 2px solid var(--border-color);
+}
+
+#viewBookingModal .nav-tabs-custom .nav-link {
+    padding: 0.45rem 0.9rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    border: none;
+    border-bottom: 2px solid transparent;
+}
+
+#viewBookingModal .nav-tabs-custom .nav-link.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+    background: transparent;
+}
+
+#viewBookingModal .tab-pane {
+    padding-top: 0.5rem !important;
+}
+
+#viewBookingModal .card {
+    transition: none;
+}
+
+#viewBookingModal .table-sm th,
+#viewBookingModal .table-sm td {
+    padding: 0.4rem 0.6rem !important;
+    font-size: 0.82rem;
+}
+
+#viewBookingModal h6 {
+    margin-bottom: 0.5rem !important;
+}
+
+/* Compact Git Diff & Timeline Spacing Enhancements */
+.git-diff-card {
+    border-radius: 8px;
+    padding: 6px 10px !important;
+    margin-bottom: 0 !important;
+}
+
+.git-diff-card .diff-header {
+    margin-bottom: 4px !important;
+    padding-bottom: 2px !important;
+}
+
+.git-diff-card .diff-block {
+    margin-bottom: 4px !important;
+}
+
+.git-diff-card .diff-line {
+    padding: 3px 6px !important;
+    margin-bottom: 2px !important;
+    font-size: 0.72rem !important;
+}
+
+.compact-summary-banner {
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 10px 14px;
+}
+
+.compact-stat-box {
+    padding: 6px 12px;
+    border-radius: 8px;
+    background-color: #ffffff;
+    border: 1px solid #f1f5f9;
+}
+
+.compact-timeline-card {
+    padding: 8px 12px !important;
+    margin-bottom: 6px !important;
+}
+
+/* Dashboard Header & Metric Card Grid Enhancements */
+#btn-refresh-dashboard {
+    transition: all 0.2s ease-in-out;
+    border-radius: 8px;
+    font-weight: 500;
+}
+
+#btn-refresh-dashboard:hover {
+    transform: rotate(15deg);
+    background-color: var(--primary-color);
+    color: #ffffff;
+}
+
+.stat-card.h-100 {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+/* Compact, stable layout while Booking List results are refreshed. */
+.booking-filters-card .form-control,
+.booking-filters-card .form-select,
+.booking-filters-card .btn {
+    min-height: 38px;
+}
+
+#view-bookings .table-responsive {
+    min-height: 120px;
+}
+

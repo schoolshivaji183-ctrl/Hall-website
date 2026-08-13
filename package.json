@@ -1,0 +1,22 @@
+{
+  "name": "hall-booking-management-system",
+  "version": "1.0.0",
+  "description": "A complete Hall Booking Management System prototype with Node.js, Express, and Bootstrap 5.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "express",
+    "bootstrap",
+    "hall-booking",
+    "in-memory"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5"
+  }
+}
