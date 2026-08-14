@@ -2,7 +2,7 @@
  * Client Application Logic - Hall Booking Management System (Commercial ERP Core)
  */
 
-document.addEventListener('DOMContentLoaded', () => {
+function initApp() {
     // --- Application State ---
     let currentRole = 'Admin'; // 'Admin' | 'Faculty'
     let currentView = 'dashboard';
@@ -68,6 +68,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const targetEl = document.getElementById(`view-${viewName}`);
         if (targetEl) targetEl.classList.remove('d-none');
 
+        // Sync sidebar active status
+        navItems.forEach(i => {
+            if (i.getAttribute('data-view') === viewName) {
+                i.classList.add('active');
+            } else {
+                i.classList.remove('active');
+            }
+        });
+
         // Update Page Title
         const titleMap = {
             'dashboard': 'Dashboard Overview',
@@ -79,7 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Each view owns its refresh. Opening a tab always reads current server data.
         if (viewName === 'dashboard') {
-            loadDashboardData();
+            refreshDashboard();
         } else if (viewName === 'bookings') {
             loadBookingsList();
         } else if (viewName === 'availability') {
@@ -140,6 +149,53 @@ document.addEventListener('DOMContentLoaded', () => {
      * Dedicated Dashboard Data Refresh - Fetches directly from /api/bookings & /api/payments.
      * Operates completely independent of cached state from other views.
      */
+    function renderDashboardCards(metrics = {}) {
+        console.log("DEBUG: renderDashboardCards executed", metrics);
+        const {
+            totalBookings = 0,
+            todayEventsCount = 0,
+            isHall1BookedToday = false,
+            isHall2BookedToday = false,
+            todayCollections = 0,
+            pendingRentDues = 0,
+            totalRentRevenue = 0,
+            totalDepositHeld = 0
+        } = metrics;
+
+        if (document.getElementById('stat-total')) {
+            document.getElementById('stat-total').textContent = totalBookings;
+        }
+        if (document.getElementById('stat-today-count')) {
+            document.getElementById('stat-today-count').textContent = todayEventsCount;
+        }
+        if (document.getElementById('stat-hall1')) {
+            const h1El = document.getElementById('stat-hall1');
+            h1El.textContent = isHall1BookedToday ? 'Booked Today' : 'Ready for Booking';
+            h1El.className = `fw-bold mb-0 text-truncate ${isHall1BookedToday ? 'text-primary' : 'text-success'}`;
+        }
+        if (document.getElementById('stat-hall2')) {
+            const h2El = document.getElementById('stat-hall2');
+            h2El.textContent = isHall2BookedToday ? 'Booked Today' : 'Ready for Booking';
+            h2El.className = `fw-bold mb-0 text-truncate ${isHall2BookedToday ? 'text-purple' : 'text-success'}`;
+        }
+        if (document.getElementById('stat-today-collection')) {
+            document.getElementById('stat-today-collection').textContent = `₹${todayCollections.toLocaleString()}`;
+        }
+        if (document.getElementById('stat-pending-payments')) {
+            document.getElementById('stat-pending-payments').textContent = `₹${pendingRentDues.toLocaleString()}`;
+        }
+        if (document.getElementById('stat-total-revenue')) {
+            document.getElementById('stat-total-revenue').textContent = `₹${totalRentRevenue.toLocaleString()}`;
+        }
+        if (document.getElementById('stat-deposits-held')) {
+            document.getElementById('stat-deposits-held').textContent = `₹${totalDepositHeld.toLocaleString()}`;
+        }
+    }
+
+    /**
+     * Dedicated Dashboard Data Refresh - Fetches directly from /api/bookings & /api/payments.
+     * Operates completely independent of cached state from other views.
+     */
     async function loadDashboardData() {
         const today = getTodayDateString();
         setDashboardRefreshing(true);
@@ -148,28 +204,31 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            // Direct API calls with no dependence on cached state
-            const [bookingsRes, paymentsRes] = await Promise.all([
-                fetch('/api/bookings'),
-                fetch('/api/payments')
+            let bookingsResult = { success: false, data: [] };
+            let paymentsResult = { success: false, data: [] };
+
+            const [bookingsRes, paymentsRes] = await Promise.allSettled([
+                fetch('/api/bookings').then(r => r.json()),
+                fetch('/api/payments').then(r => r.json())
             ]);
 
-            const bookingsResult = await bookingsRes.json();
-            const paymentsResult = await paymentsRes.json();
-
-            if (!bookingsResult.success || !paymentsResult.success) {
-                renderDashboardNoData("No data available");
-                return;
+            if (bookingsRes.status === 'fulfilled' && bookingsRes.value) {
+                bookingsResult = bookingsRes.value;
+            }
+            if (paymentsRes.status === 'fulfilled' && paymentsRes.value) {
+                paymentsResult = paymentsRes.value;
             }
 
-            const bookings = bookingsResult.data || [];
-            const payments = paymentsResult.data || [];
+            const bookingsSucceeded = bookingsResult && bookingsResult.success && Array.isArray(bookingsResult.data);
+            const paymentsSucceeded = paymentsResult && paymentsResult.success && Array.isArray(paymentsResult.data);
 
-            // Safeguard: If no data returned from server
-            if (bookings.length === 0 && payments.length === 0) {
+            if (!bookingsSucceeded && !paymentsSucceeded) {
                 renderDashboardNoData("No data available");
-                return;
+                return null;
             }
+
+            const bookings = bookingsSucceeded ? bookingsResult.data : [];
+            const payments = paymentsSucceeded ? paymentsResult.data : [];
 
             // 1. Compute Operational Metrics directly from /api/bookings
             const totalBookings = bookings.length;
@@ -178,23 +237,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const isHall1BookedToday = todayEvents.some(b => b.hall === 'Hall 1');
             const isHall2BookedToday = todayEvents.some(b => b.hall === 'Hall 2');
-
-            if (document.getElementById('stat-total')) {
-                document.getElementById('stat-total').textContent = totalBookings;
-            }
-            if (document.getElementById('stat-today-count')) {
-                document.getElementById('stat-today-count').textContent = todayEvents.length;
-            }
-            if (document.getElementById('stat-hall1')) {
-                const h1El = document.getElementById('stat-hall1');
-                h1El.textContent = isHall1BookedToday ? 'Booked Today' : 'Ready for Booking';
-                h1El.className = `fw-bold mb-0 text-truncate ${isHall1BookedToday ? 'text-primary' : 'text-success'}`;
-            }
-            if (document.getElementById('stat-hall2')) {
-                const h2El = document.getElementById('stat-hall2');
-                h2El.textContent = isHall2BookedToday ? 'Booked Today' : 'Ready for Booking';
-                h2El.className = `fw-bold mb-0 text-truncate ${isHall2BookedToday ? 'text-purple' : 'text-success'}`;
-            }
 
             // 2. Compute Financial Metrics directly from /api/bookings & /api/payments
             let pendingRentDues = 0;
@@ -211,34 +253,37 @@ document.addEventListener('DOMContentLoaded', () => {
             // Calculate Today's Collection directly from /api/payments ledger
             const activeTodayTxns = payments.filter(t => !t.isVoided && t.status === 'Success' && t.date === today);
             const todayCollections = Math.max(0, activeTodayTxns.reduce((acc, t) => {
-                if (t.type.includes('Return') || t.type.includes('Refund')) {
+                if (t.type && (t.type.includes('Return') || t.type.includes('Refund'))) {
                     return acc - t.amount;
-                } else if (!t.type.includes('Forfeiture') && !t.type.includes('Adjustment')) {
+                } else if (t.type && !t.type.includes('Forfeiture') && !t.type.includes('Adjustment')) {
                     return acc + t.amount;
                 }
                 return acc;
             }, 0));
 
-            if (document.getElementById('stat-today-collection')) {
-                document.getElementById('stat-today-collection').textContent = `₹${todayCollections.toLocaleString()}`;
-            }
-            if (document.getElementById('stat-pending-payments')) {
-                document.getElementById('stat-pending-payments').textContent = `₹${pendingRentDues.toLocaleString()}`;
-            }
-            if (document.getElementById('stat-total-revenue')) {
-                document.getElementById('stat-total-revenue').textContent = `₹${totalRentRevenue.toLocaleString()}`;
-            }
-            if (document.getElementById('stat-deposits-held')) {
-                document.getElementById('stat-deposits-held').textContent = `₹${totalDepositHeld.toLocaleString()}`;
-            }
+            const metrics = {
+                totalBookings,
+                todayEventsCount: todayEvents.length,
+                isHall1BookedToday,
+                isHall2BookedToday,
+                todayCollections,
+                pendingRentDues,
+                totalRentRevenue,
+                totalDepositHeld
+            };
+
+            renderDashboardCards(metrics);
 
             // 3. Render Today's Event Schedule & Recent Activity Feed
             renderTodayDashboardEvents(todayEvents);
             renderRecentActivity(bookings.slice(-5).reverse());
 
+            return metrics;
+
         } catch (err) {
             console.error("Error loading dashboard data directly from API:", err);
             renderDashboardNoData("No data available");
+            return null;
         } finally {
             setDashboardRefreshing(false);
         }
@@ -250,8 +295,50 @@ document.addEventListener('DOMContentLoaded', () => {
         status.classList.toggle('d-none', !isRefreshing);
     }
 
-    function refreshDashboard() {
-        return loadDashboardData();
+    function clearDashboardDOM() {
+        // Clear all metric DOM elements (set to 0 or "Loading...")
+        if (document.getElementById('stat-total')) document.getElementById('stat-total').textContent = '0';
+        if (document.getElementById('stat-today-count')) document.getElementById('stat-today-count').textContent = '0';
+        if (document.getElementById('stat-hall1')) {
+            document.getElementById('stat-hall1').textContent = 'Loading…';
+            document.getElementById('stat-hall1').className = 'fw-bold mb-0 text-truncate text-muted';
+        }
+        if (document.getElementById('stat-hall2')) {
+            document.getElementById('stat-hall2').textContent = 'Loading…';
+            document.getElementById('stat-hall2').className = 'fw-bold mb-0 text-truncate text-muted';
+        }
+        if (document.getElementById('stat-today-collection')) document.getElementById('stat-today-collection').textContent = '₹0';
+        if (document.getElementById('stat-pending-payments')) document.getElementById('stat-pending-payments').textContent = '₹0';
+        if (document.getElementById('stat-total-revenue')) document.getElementById('stat-total-revenue').textContent = '₹0';
+        if (document.getElementById('stat-deposits-held')) document.getElementById('stat-deposits-held').textContent = '₹0';
+
+        const eventsContainer = document.getElementById('today-events-container');
+        if (eventsContainer) {
+            eventsContainer.innerHTML = `
+                <div class="text-center py-3 text-muted small">
+                    <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                    Loading…
+                </div>`;
+        }
+
+        const activityContainer = document.getElementById('recent-activity-container');
+        if (activityContainer) {
+            activityContainer.innerHTML = `
+                <div class="text-center py-3 text-muted small">
+                    <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                    Loading…
+                </div>`;
+        }
+    }
+
+    async function refreshDashboard() {
+        clearDashboardDOM();
+
+        const metrics = await loadDashboardData();
+
+        if (metrics) {
+            renderDashboardCards(metrics);
+        }
     }
 
     /**
@@ -340,21 +427,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadBookingsList() {
         syncCurrentFilters();
+
         const requestId = ++bookingsListRequestId;
+
         renderBookingsLoading();
 
         try {
             const res = await fetch(getBookingsListUrl());
             const result = await res.json();
-            if (requestId !== bookingsListRequestId) return;
 
-            const fetchedData = (result.success && Array.isArray(result.data)) ? result.data : [];
-            const filteredBookings = applyBookingsFiltersAndRender(fetchedData);
+            if (requestId !== bookingsListRequestId) return [];
+
+            const fetchedData =
+                result.success && Array.isArray(result.data)
+                    ? result.data
+                    : [];
+
+            const filteredBookings = applyBookingsFilters(fetchedData);
+
             renderBookingsTable(filteredBookings);
+
+            return filteredBookings;
         } catch (err) {
-            if (requestId !== bookingsListRequestId) return;
-            console.error("Error loading filtered bookings:", err);
+            if (requestId !== bookingsListRequestId) return [];
+
+            console.error('Error loading filtered bookings:', err);
             renderBookingsTable([]);
+
+            return [];
         }
     }
 
@@ -370,7 +470,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </tr>`;
     }
 
-    function applyBookingsFiltersAndRender(fetchedData) {
+    function applyBookingsFilters(fetchedData) {
         if (!fetchedData) return [];
 
         const search = currentFilters.search.toLowerCase();
@@ -567,6 +667,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load Availability
     async function loadHallAvailability() {
         const targetDate = document.getElementById('avail-date-picker').value || getTodayDateString();
+        const h1Container = document.getElementById('hall1-slots-container');
+        const h2Container = document.getElementById('hall2-slots-container');
+        if (h1Container) h1Container.innerHTML = `<div class="text-center py-3 text-muted small"><span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Loading availability…</div>`;
+        if (h2Container) h2Container.innerHTML = `<div class="text-center py-3 text-muted small"><span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Loading availability…</div>`;
         try {
             const res = await fetch(`/api/availability?date=${targetDate}`);
             const result = await res.json();
@@ -581,6 +685,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load Today's View
     async function loadTodayViewEvents() {
         const today = getTodayDateString();
+        const container = document.getElementById('today-view-container');
+        if (container) {
+            container.innerHTML = `<div class="col-12 text-center py-5 text-muted"><span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Loading today's events…</div>`;
+        }
         try {
             const res = await fetch('/api/bookings');
             const result = await res.json();
@@ -596,6 +704,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load Upcoming View
     async function loadUpcomingViewEvents() {
         const today = getTodayDateString();
+        const container = document.getElementById('upcoming-view-container');
+        if (container) {
+            container.innerHTML = `<div class="col-12 text-center py-5 text-muted"><span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Loading upcoming events…</div>`;
+        }
         try {
             const res = await fetch('/api/bookings');
             const result = await res.json();
@@ -612,9 +724,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // 4. RENDERING FUNCTIONS
     // =========================================================================
 
-    function renderBookingsTable(bookings) {
+    function renderBookingsTable(bookings = []) {
+        console.log("DEBUG: renderBookingsTable executed", bookings);
         const tbody = document.getElementById('bookings-table-body');
+        if (!tbody) return;
         tbody.innerHTML = '';
+
 
         if (bookings.length === 0) {
             tbody.innerHTML = `
@@ -1864,13 +1979,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // 6. PAYMENTS VIEW INTERACTIVE SELECTOR
     // =========================================================================
 
-    document.getElementById('pay-select-booking').addEventListener('change', async (e) => {
-        const bookingId = e.target.value;
-        const container = document.getElementById('pay-selected-booking-card');
-        if (!bookingId) {
-            container.classList.add('d-none');
-            return;
-        }
+    const paySelectBooking = document.getElementById('pay-select-booking');
+    if (paySelectBooking) {
+        paySelectBooking.addEventListener('change', async (e) => {
+            const bookingId = e.target.value;
+            const container = document.getElementById('pay-selected-booking-card');
+            if (!bookingId) {
+                if (container) container.classList.add('d-none');
+                return;
+            }
 
         try {
             const res = await fetch(`/api/payments/booking/${bookingId}`);
@@ -1936,7 +2053,8 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             console.error(err);
         }
-    });
+        });
+    }
 
     // =========================================================================
     // 7. MODAL HANDLERS & ACTIONS
@@ -2080,15 +2198,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Event listener for customer selection inside payment modal
-    document.getElementById('pay-modal-booking-select').addEventListener('change', (e) => {
-        const selectedId = e.target.value;
-        loadPaymentModalSummary(selectedId);
-        const searchSelect = document.getElementById('pay-select-booking');
-        if (searchSelect && selectedId) {
-            searchSelect.value = selectedId;
-            searchSelect.dispatchEvent(new Event('change'));
-        }
-    });
+    const payModalBookingSelect = document.getElementById('pay-modal-booking-select');
+    if (payModalBookingSelect) {
+        payModalBookingSelect.addEventListener('change', (e) => {
+            const selectedId = e.target.value;
+            loadPaymentModalSummary(selectedId);
+            const searchSelect = document.getElementById('pay-select-booking');
+            if (searchSelect && selectedId) {
+                searchSelect.value = selectedId;
+                searchSelect.dispatchEvent(new Event('change'));
+            }
+        });
+    }
 
     // Open Deposit Action Modal
     async function openDepositActionModal(bookingId) {
@@ -2100,7 +2221,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('dep-input-bookingId').value = f.bookingId;
                 const actionSelect = document.getElementById('dep-input-action');
                 const settledAlert = document.getElementById('dep-settled-alert');
-                const submitBtn = document.getElementById('depositForm').querySelector('button[type="submit"]');
+                const submitBtn = document.getElementById('depositForm')?.querySelector('button[type="submit"]');
 
                 // Only Archived bookings fully block financial actions
                 if (!f.canProcessFinancials) {
@@ -2108,9 +2229,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         settledAlert.classList.remove('d-none');
                         settledAlert.innerHTML = `<i class="bi bi-archive me-2"></i><strong>Archived Booking:</strong> Financial actions are locked for archived bookings.`;
                     }
-                    document.getElementById('dep-input-amount').disabled = true;
-                    actionSelect.disabled = true;
-                    document.getElementById('dep-input-remarks').disabled = true;
+                    if (document.getElementById('dep-input-amount')) document.getElementById('dep-input-amount').disabled = true;
+                    if (actionSelect) actionSelect.disabled = true;
+                    if (document.getElementById('dep-input-remarks')) document.getElementById('dep-input-remarks').disabled = true;
                     if (submitBtn) submitBtn.disabled = true;
                     depositActionModal.show();
                     return;
@@ -2118,9 +2239,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Clear any old alert
                 if (settledAlert) settledAlert.classList.add('d-none');
-                document.getElementById('dep-input-amount').disabled = false;
-                actionSelect.disabled = false;
-                document.getElementById('dep-input-remarks').disabled = false;
+                if (document.getElementById('dep-input-amount')) document.getElementById('dep-input-amount').disabled = false;
+                if (actionSelect) actionSelect.disabled = false;
+                if (document.getElementById('dep-input-remarks')) document.getElementById('dep-input-remarks').disabled = false;
                 if (submitBtn) submitBtn.disabled = false;
 
                 // Contextual deposit messaging
@@ -2138,22 +2259,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 // Context-aware option enabling
-                Array.from(actionSelect.options).forEach(opt => {
-                    if (opt.value === 'adjust' || opt.value === 'return' || opt.value === 'forfeit') {
-                        opt.disabled = (f.effectiveDepositHeld <= 0);
-                    } else if (opt.value === 'receive') {
-                        opt.disabled = false; // Always allow receiving deposit even after completion
-                    }
-                });
+                if (actionSelect) {
+                    Array.from(actionSelect.options).forEach(opt => {
+                        if (opt.value === 'adjust' || opt.value === 'return' || opt.value === 'forfeit') {
+                            opt.disabled = (f.effectiveDepositHeld <= 0);
+                        } else if (opt.value === 'receive') {
+                            opt.disabled = false; // Always allow receiving deposit even after completion
+                        }
+                    });
 
-                if (f.effectiveDepositHeld > 0) {
-                    actionSelect.value = f.remainingRent > 0 ? 'adjust' : 'return';
-                    document.getElementById('dep-input-amount').value = f.remainingRent > 0 ? Math.min(f.effectiveDepositHeld, f.remainingRent) : f.effectiveDepositHeld;
-                } else {
-                    actionSelect.value = 'receive';
-                    document.getElementById('dep-input-amount').value = f.remainingDepositDue > 0 ? f.remainingDepositDue : (f.securityDeposit > 0 ? f.securityDeposit : '');
+                    if (f.effectiveDepositHeld > 0) {
+                        actionSelect.value = f.remainingRent > 0 ? 'adjust' : 'return';
+                        if (document.getElementById('dep-input-amount')) document.getElementById('dep-input-amount').value = f.remainingRent > 0 ? Math.min(f.effectiveDepositHeld, f.remainingRent) : f.effectiveDepositHeld;
+                    } else {
+                        actionSelect.value = 'receive';
+                        if (document.getElementById('dep-input-amount')) document.getElementById('dep-input-amount').value = f.remainingDepositDue > 0 ? f.remainingDepositDue : (f.securityDeposit > 0 ? f.securityDeposit : '');
+                    }
+                    actionSelect.dispatchEvent(new Event('change'));
                 }
-                actionSelect.dispatchEvent(new Event('change'));
 
                 depositActionModal.show();
             }
@@ -2163,14 +2286,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Event listener for action change inside deposit modal
-    document.getElementById('dep-input-action').addEventListener('change', async (e) => {
-        const action = e.target.value;
-        const bId = document.getElementById('dep-input-bookingId').value;
-        if (!bId) return;
-        try {
-            const res = await fetch(`/api/payments/booking/${bId}`);
-            const result = await res.json();
-            if (result.success) {
+    const depInputAction = document.getElementById('dep-input-action');
+    if (depInputAction) {
+        depInputAction.addEventListener('change', async (e) => {
+            const action = e.target.value;
+            const bId = document.getElementById('dep-input-bookingId')?.value;
+            if (!bId) return;
+            try {
+                const res = await fetch(`/api/payments/booking/${bId}`);
+                const result = await res.json();
+                if (result.success) {
                 const f = result.data;
                 const amountInput = document.getElementById('dep-input-amount');
                 if (action === 'receive' || action === 'collect') {
@@ -2190,7 +2315,8 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             console.error(err);
         }
-    });
+        });
+    }
 
     // Open Void Receipt Modal
     function openVoidModal(receiptNumber) {
@@ -2546,7 +2672,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('input-hallRent').value = contract.hallRent !== undefined ? contract.hallRent : 10000;
                 document.getElementById('input-discount').value = contract.baseDiscount !== undefined ? contract.baseDiscount : 0;
                 document.getElementById('input-extraCharges').value = initialExtraVal;
-                document.getElementById('input-securityDeposit').value = contract.securityDeposit !== undefined ? contract.securityDeposit : 2000;
+                document.getElementById('input-securityDeposit').value = contract.securityDeposit !== undefined ? contract.securityDeposit : 0;
                 document.getElementById('input-notes').value = b.notes || '';
 
                 conflictAlert.classList.add('d-none');
@@ -2824,30 +2950,43 @@ document.addEventListener('DOMContentLoaded', () => {
     // =========================================================================
     // 9. FILTER & SEARCH EVENT LISTENERS
     // =========================================================================
-    ['filter-search', 'filter-date', 'filter-hall', 'filter-status', 'filter-booking-dues'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.addEventListener('input', () => {
-                syncCurrentFilters();
-                loadBookingsList();
-            });
-            el.addEventListener('change', () => {
-                syncCurrentFilters();
+    function attachFilterListeners() {
+        document.getElementById('filter-search')
+            ?.addEventListener('input', loadBookingsList);
+
+        document.getElementById('filter-date')
+            ?.addEventListener('change', loadBookingsList);
+
+        document.getElementById('filter-hall')
+            ?.addEventListener('change', loadBookingsList);
+
+        document.getElementById('filter-status')
+            ?.addEventListener('change', loadBookingsList);
+
+        document.getElementById('filter-booking-dues')
+            ?.addEventListener('change', loadBookingsList);
+
+        const resetBtn = document.getElementById('btn-reset-filters');
+        if (resetBtn) {
+            resetBtn.addEventListener('click', () => {
+                if (document.getElementById('filter-search')) document.getElementById('filter-search').value = '';
+                if (document.getElementById('filter-date')) document.getElementById('filter-date').value = '';
+                if (document.getElementById('filter-hall')) document.getElementById('filter-hall').value = 'All';
+                if (document.getElementById('filter-status')) document.getElementById('filter-status').value = 'All';
+                if (document.getElementById('filter-booking-dues')) document.getElementById('filter-booking-dues').value = 'All';
                 loadBookingsList();
             });
         }
-    });
+    }
 
-    const resetBtn = document.getElementById('btn-reset-filters');
-    if (resetBtn) {
-        resetBtn.addEventListener('click', () => {
-            if (document.getElementById('filter-search')) document.getElementById('filter-search').value = '';
-            if (document.getElementById('filter-date')) document.getElementById('filter-date').value = '';
-            if (document.getElementById('filter-hall')) document.getElementById('filter-hall').value = 'All';
-            if (document.getElementById('filter-status')) document.getElementById('filter-status').value = 'All';
-            if (document.getElementById('filter-booking-dues')) document.getElementById('filter-booking-dues').value = 'All';
-            syncCurrentFilters();
-            loadBookingsList();
+    attachFilterListeners();
+
+    // Dashboard Refresh Button
+    const refreshDashBtn = document.getElementById('btn-refresh-dashboard');
+    if (refreshDashBtn) {
+        refreshDashBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            refreshDashboard();
         });
     }
 
@@ -2867,19 +3006,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    document.getElementById('btn-reset-pay-filters').addEventListener('click', () => {
-        document.getElementById('filter-pay-search').value = '';
-        if (document.getElementById('filter-pay-dues')) document.getElementById('filter-pay-dues').value = 'All';
-        document.getElementById('filter-pay-method').value = 'All';
-        document.getElementById('filter-pay-type').value = 'All';
-        document.getElementById('filter-pay-status').value = 'Success';
-        loadPaymentsView();
-    });
+    const resetPayFiltersBtn = document.getElementById('btn-reset-pay-filters');
+    if (resetPayFiltersBtn) {
+        resetPayFiltersBtn.addEventListener('click', () => {
+            if (document.getElementById('filter-pay-search')) document.getElementById('filter-pay-search').value = '';
+            if (document.getElementById('filter-pay-dues')) document.getElementById('filter-pay-dues').value = 'All';
+            if (document.getElementById('filter-pay-method')) document.getElementById('filter-pay-method').value = 'All';
+            if (document.getElementById('filter-pay-type')) document.getElementById('filter-pay-type').value = 'All';
+            if (document.getElementById('filter-pay-status')) document.getElementById('filter-pay-status').value = 'Success';
+            loadPaymentsView();
+        });
+    }
 
     const openPayBtnHeader = document.getElementById('btn-open-payment-modal');
     if (openPayBtnHeader) {
         openPayBtnHeader.addEventListener('click', () => {
-            const selectedBookingId = document.getElementById('pay-select-booking').value;
+            const selectedBookingId = document.getElementById('pay-select-booking')?.value;
             openPaymentModal(selectedBookingId || null);
         });
     }
@@ -2938,6 +3080,16 @@ document.addEventListener('DOMContentLoaded', () => {
         return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     }
 
-    // Initialize Initial View
-    switchView('dashboard');
-});
+    // Step 1 — Initial Dashboard Load
+    console.log("DEBUG: Initializing Dashboard View...");
+    switchView('dashboard'); // force Dashboard to load immediately
+}
+
+// Robust execution whether DOM is loading or already parsed
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+} else {
+    initApp();
+}
+
+
