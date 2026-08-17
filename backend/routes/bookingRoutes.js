@@ -32,5 +32,7 @@ router.get('/payments/receipt/:receiptNumber', PaymentController.getReceiptDetai
 router.post('/payments', PaymentController.createPayment);
 router.patch('/payments/:receiptNumber/void', PaymentController.voidPayment);
 router.post('/payments/deposit-action', PaymentController.manageDeposit);
+// Audit Trail Endpoints
+router.get('/audit', BookingController.getAuditLogs);
 
 module.exports = router;

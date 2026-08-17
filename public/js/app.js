@@ -81,6 +81,7 @@ function initApp() {
         const titleMap = {
             'dashboard': 'Dashboard Overview',
             'bookings': 'Booking Management List',
+            'overall-summary': 'Overall Financial & Operational Summary',
             'availability': 'Hall Schedule Availability',
             'upcoming': 'Upcoming Events Schedule'
         };
@@ -91,6 +92,8 @@ function initApp() {
             refreshDashboard();
         } else if (viewName === 'bookings') {
             loadBookingsList();
+        } else if (viewName === 'overall-summary') {
+            loadOverallSummaryView();
         } else if (viewName === 'availability') {
             loadHallAvailability();
         } else if (viewName === 'upcoming') {
@@ -103,6 +106,8 @@ function initApp() {
             refreshDashboard();
         } else if (currentView === 'bookings') {
             loadBookingsList();
+        } else if (currentView === 'overall-summary') {
+            loadOverallSummaryView();
         } else if (currentView === 'availability') {
             loadHallAvailability();
         } else if (currentView === 'upcoming') {
@@ -1225,30 +1230,19 @@ function initApp() {
     }
 
     // =========================================================================
-    // 5. VIEW BOOKING DETAILS & TIMELINE MODAL (4-BADGE STATUS SUMMARY)
+    // =========================================================================
+    // 5. VIEW BOOKING DETAILS & TIMELINE MODAL (5 TABS NAVIGATION)
     // =========================================================================
 
     async function openViewBookingModal(bookingId) {
         try {
-            const [bookingRes, statsRes] = await Promise.all([
-                fetch(`/api/bookings/${bookingId}`),
-                fetch('/api/payments/stats')
-            ]);
-
+            const bookingRes = await fetch(`/api/bookings/${bookingId}`);
             const bookingResult = await bookingRes.json();
-            const statsResult = await statsRes.json();
 
             if (bookingResult.success) {
                 const b = bookingResult.data;
                 const f = b.financial || {};
-                const stats = (statsResult.success && statsResult.data) ? statsResult.data : {};
                 const body = document.getElementById('view-booking-modal-body');
-
-                // Collection Stats (all >= 0)
-                const cashColl = Math.max(0, stats.cashCollection || 0);
-                const upiColl = Math.max(0, stats.upiCollection || 0);
-                const cardColl = Math.max(0, stats.cardCollection || 0);
-                const otherColl = Math.max(0, stats.otherCollection || 0);
 
                 // Formatted CSS Badges
                 const payStatusFormatted = (f.paymentStatus || 'Unpaid').replace(/ /g, '-').replace(/\(/g, '').replace(/\)/g, '');
@@ -1331,11 +1325,16 @@ function initApp() {
                     ${completedPaymentPendingNoticeHTML}
                     ${overpayAlertHTML}
 
-                    <!-- 3 TABS NAVIGATION -->
+                    <!-- 5 TABS NAVIGATION (EVENT DETAILS, CONTRACT DETAILS, FINANCIAL LEDGER, ACTIVITY TIMELINE, AUDIT TRAIL & GATE STYLE DIFFERENCE) -->
                     <ul class="nav nav-tabs nav-tabs-custom mb-3" id="bookingTab" role="tablist">
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link active fw-semibold" id="contract-tab" data-bs-toggle="tab" data-bs-target="#tab-contract" type="button">
-                                <i class="bi bi-file-earmark-text me-2"></i>Event & Contract Details
+                            <button class="nav-link active fw-semibold" id="event-tab" data-bs-toggle="tab" data-bs-target="#tab-event" type="button">
+                                <i class="bi bi-file-earmark-person me-2"></i>Event Details
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-semibold" id="contract-tab" data-bs-toggle="tab" data-bs-target="#tab-contract" type="button">
+                                <i class="bi bi-calculator me-2"></i>Contract Details
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
@@ -1348,243 +1347,115 @@ function initApp() {
                                 <i class="bi bi-clock-history me-2"></i>Activity Timeline
                             </button>
                         </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-semibold" id="audit-tab" data-bs-toggle="tab" data-bs-target="#tab-audit" type="button">
+                                <i class="bi bi-shield-check me-2"></i>Audit Trail & Gate Style Difference
+                            </button>
+                        </li>
                     </ul>
 
                     <div class="tab-content" id="bookingTabContent">
-                        <!-- TAB 1: EVENT & CONTRACT DETAILS -->
-                        <div class="tab-pane fade show active p-1" id="tab-contract">
-                            <div class="row g-3 mb-3">
-                                <div class="col-12 col-md-6">
-                                    <div class="p-3 bg-white border rounded-3 h-100 shadow-sm">
-                                        <h6 class="fw-bold text-primary mb-2"><i class="bi bi-person-badge me-2"></i>Customer & Event Information</h6>
-                                        <div class="mb-1.5"><strong>Booking ID:</strong> <span class="text-primary fw-bold">${b.id}</span></div>
-                                        <div class="mb-1.5"><strong>Customer Name:</strong> ${escapeHtml(b.customerName)}</div>
-                                        <div class="mb-1.5"><strong>Mobile Number:</strong> ${escapeHtml(b.mobileNumber)}</div>
-                                        <div class="mb-1.5"><strong>Event Name / Purpose:</strong> ${escapeHtml(b.eventName)}</div>
-                                        <div class="mb-1.5"><strong>Hall Allocated:</strong> <span class="hall-pill ${b.hall === 'Hall 1' ? 'hall-1' : 'hall-2'}">${b.hall}</span></div>
-                                        <div class="mb-1.5"><strong>Booking Date & Slot:</strong> ${b.bookingDate} (${b.startTime} - ${b.endTime})</div>
-                                        <div class="mt-2 text-muted small"><strong>Notes:</strong> ${escapeHtml(b.notes || 'None')}</div>
+                        <!-- TAB 1: EVENT DETAILS -->
+                        <div class="tab-pane fade show active p-1" id="tab-event">
+                            <div class="card border rounded-3 p-4 bg-white shadow-sm mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                                    <h6 class="fw-bold text-primary mb-0"><i class="bi bi-person-badge me-2"></i>Customer & Event Information</h6>
+                                    <div class="d-flex gap-2">
+                                        ${currentRole === 'Admin' && b.status !== 'Archived' ? `
+                                            <button class="btn btn-sm btn-outline-primary btn-modal-edit-booking" data-id="${b.id}">
+                                                <i class="bi bi-pencil-square me-1"></i>Edit Booking Details
+                                            </button>
+                                        ` : ''}
                                     </div>
                                 </div>
-                                <div class="col-12 col-md-6">
-                                    <div class="p-3 bg-white border rounded-3 h-100 shadow-sm">
-                                        <h6 class="fw-bold text-success mb-2"><i class="bi bi-calculator me-2"></i>Financial Contract Summary</h6>
-                                        <div class="d-flex justify-content-between py-1 border-bottom"><span>Base Hall Rent:</span> <strong>₹${(f.hallRent || 0).toLocaleString()}</strong></div>
-                                        ${f.baseDiscount > 0 ? `
-                                            <div class="d-flex justify-content-between py-1 border-bottom text-success"><span>Initial Base Discount:</span> <strong>-₹${f.baseDiscount.toLocaleString()}</strong></div>
-                                        ` : ''}
-                                        ${(f.discountsList || []).map(d => `
-                                            <div class="d-flex justify-content-between py-1 border-bottom text-success"><span>Approved Discount (${escapeHtml(d.reason)}):</span> <strong>-₹${d.amount.toLocaleString()}</strong></div>
-                                        `).join('')}
-                                        ${(f.extraChargesList || []).map(c => `
-                                            <div class="d-flex justify-content-between py-1 border-bottom text-primary"><span>Extra Charge (${escapeHtml(c.category)}):</span> <strong>+₹${c.amount.toLocaleString()}</strong></div>
-                                        `).join('')}
-                                        <div class="d-flex justify-content-between py-1 border-bottom fw-bold text-dark fs-6"><span>Net Hall Rent:</span> <strong>₹${(f.netRent || 0).toLocaleString()}</strong></div>
-                                        ${f.showDepositInContract ? `
-                                            <div class="d-flex justify-content-between py-1 border-bottom text-purple"><span>Security Deposit Held:</span> <strong>₹${(f.effectiveDepositHeld || 0).toLocaleString()}</strong></div>
-                                        ` : ''}
-                                        <div class="d-flex justify-content-between py-2 fw-bold text-primary fs-6"><span>Total Contract Amount:</span> <strong>₹${(f.totalContractAmount || 0).toLocaleString()}</strong></div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="p-3 bg-white border rounded-3 shadow-sm">
-                                <h6 class="fw-bold mb-2"><i class="bi bi-cash-stack me-2 text-success"></i>Current Account Balance Summary</h6>
-                                <div class="row text-center g-2 small">
-                                    <div class="col-6 col-md-3">
-                                        <div class="p-2 bg-light rounded border">
-                                            <div class="text-muted">Net Rent Money Paid</div>
-                                            <div class="fw-bold text-success fs-6">₹${(f.netRentPaid || 0).toLocaleString()}</div>
+                                <div class="row g-3">
+                                    <div class="col-12 col-md-6">
+                                        <div class="p-3 bg-light rounded-3 h-100">
+                                            <div class="mb-2"><strong>Booking ID:</strong> <span class="text-primary fw-bold font-monospace">${b.id}</span></div>
+                                            <div class="mb-2"><strong>Customer / Organizer:</strong> ${escapeHtml(b.customerName)}</div>
+                                            <div class="mb-2"><strong>Mobile Number:</strong> <a href="tel:${escapeHtml(b.mobileNumber)}" class="text-decoration-none"><i class="bi bi-telephone me-1"></i>${escapeHtml(b.mobileNumber)}</a></div>
+                                            <div class="mb-0"><strong>Event Purpose / Title:</strong> ${escapeHtml(b.eventName)}</div>
                                         </div>
                                     </div>
-                                    <div class="col-6 col-md-3">
-                                        <div class="p-2 bg-light rounded border">
-                                            <div class="text-muted">Remaining Rent Due</div>
-                                            <div class="fw-bold ${f.overpaidAmount > 0 ? 'text-warning' : ((f.remainingRent || 0) > 0 ? 'text-danger' : 'text-success')} fs-6">
-                                                ${f.overpaidAmount > 0 ? `Overpaid ₹${f.overpaidAmount.toLocaleString()}` : `₹${(f.remainingRent || 0).toLocaleString()}`}
-                                            </div>
+                                    <div class="col-12 col-md-6">
+                                        <div class="p-3 bg-light rounded-3 h-100">
+                                            <div class="mb-2"><strong>Hall Allocated:</strong> <span class="hall-pill ${b.hall === 'Hall 1' ? 'hall-1' : 'hall-2'}">${b.hall}</span></div>
+                                            <div class="mb-2"><strong>Event Date:</strong> <i class="bi bi-calendar-event me-1 text-primary"></i>${b.bookingDate}</div>
+                                            <div class="mb-2"><strong>Time Slot:</strong> <i class="bi bi-clock me-1 text-primary"></i>${b.startTime} - ${b.endTime}</div>
+                                            <div class="mb-0"><strong>Booking Status:</strong> <span class="badge-status ${b.status} px-2 py-0.5">${b.status}</span></div>
                                         </div>
                                     </div>
-                                    <div class="col-6 col-md-3">
-                                        <div class="p-2 bg-light rounded border">
-                                            <div class="text-muted">Security Deposit Paid</div>
-                                            <div class="fw-bold style-purple fs-6" style="color:#7c3aed;">₹${(f.depositPaid || 0).toLocaleString()}</div>
-                                        </div>
-                                    </div>
-                                    <div class="col-6 col-md-3">
-                                        <div class="p-2 bg-light rounded border">
-                                            <div class="text-muted">Effective Deposit Held</div>
-                                            <div class="fw-bold text-primary fs-6">₹${(f.effectiveDepositHeld || 0).toLocaleString()}</div>
+                                    <div class="col-12">
+                                        <div class="p-3 bg-light rounded-3">
+                                            <strong>Special Notes / Equipment Requirements:</strong>
+                                            <p class="text-muted mb-0 mt-1">${escapeHtml(b.notes || 'No special requirements noted for this booking.')}</p>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- TAB 2: FINANCIAL LEDGER -->
-                        <div class="tab-pane fade p-1" id="tab-ledger">
-                            <!-- COMPACT SUMMARY BANNER -->
-                            <div class="compact-summary-banner mb-3">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <span class="fw-bold text-dark small"><i class="bi bi-graph-up-arrow me-1 text-primary"></i>Collection Stats & Overall Metrics Summary</span>
-                                    <span class="badge bg-light text-muted border">System Collections (All ≥ ₹0)</span>
-                                </div>
-                                <div class="row g-2 text-center">
-                                    <div class="col-6 col-sm-3">
-                                        <div class="compact-stat-box">
-                                            <span class="text-muted d-block small">Cash Collection</span>
-                                            <strong class="text-success fs-6">₹${cashColl.toLocaleString()}</strong>
-                                        </div>
-                                    </div>
-                                    <div class="col-6 col-sm-3">
-                                        <div class="compact-stat-box">
-                                            <span class="text-muted d-block small">UPI Collection</span>
-                                            <strong class="fs-6" style="color:#7c3aed;">₹${upiColl.toLocaleString()}</strong>
-                                        </div>
-                                    </div>
-                                    <div class="col-6 col-sm-3">
-                                        <div class="compact-stat-box">
-                                            <span class="text-muted d-block small">Card Collection</span>
-                                            <strong class="text-primary fs-6">₹${cardColl.toLocaleString()}</strong>
-                                        </div>
-                                    </div>
-                                    <div class="col-6 col-sm-3">
-                                        <div class="compact-stat-box">
-                                            <span class="text-muted d-block small">Other Methods</span>
-                                            <strong class="text-amber fs-6" style="color:#d97706;">₹${otherColl.toLocaleString()}</strong>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- SEARCH & FINANCIAL ACTIONS TOOLBAR -->
-                            <div class="p-3 bg-light border rounded-3 mb-3">
-                                <div class="row g-2 align-items-center">
-                                    <div class="col-12 col-md-5">
-                                        <div class="input-group input-group-sm">
-                                            <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
-                                            <input type="text" class="form-control border-start-0" id="modal-ledger-search-input" placeholder="Search by Booking ID, Customer Name, Receipt No...">
-                                        </div>
-                                    </div>
-                                    <div class="col-12 col-md-7 text-md-end">
-                                        <div class="d-flex flex-wrap gap-2 justify-content-md-end">
-                                            <button class="btn btn-sm btn-outline-dark btn-print-full-receipt" data-id="${b.id}">
-                                                <i class="bi bi-printer me-1"></i>Print Full Receipt
-                                            </button>
-                                            ${f.canProcessFinancials ? `
-                                                ${(f.remainingRent || 0) > 0 ? `<button class="btn btn-sm btn-success btn-modal-collect-pay" data-id="${b.id}"><i class="bi bi-cash-stack me-1"></i>Collect Payment</button>` : ''}
-                                                <button class="btn btn-sm btn-primary btn-modal-manage-dep" data-id="${b.id}">
-                                                    <i class="bi bi-shield-check me-1"></i>${(f.effectiveDepositHeld || 0) > 0 ? `Manage Deposit (₹${f.effectiveDepositHeld.toLocaleString()} Held)` : 'Collect / Manage Deposit'}
-                                                </button>
-                                                <button class="btn btn-sm btn-outline-primary btn-modal-add-charge" data-id="${b.id}">
-                                                    <i class="bi bi-plus-circle me-1"></i>Extra Charge
-                                                </button>
-                                                <button class="btn btn-sm btn-outline-success btn-modal-approve-discount" data-id="${b.id}">
-                                                    <i class="bi bi-percent me-1"></i>Approve Discount
-                                                </button>
-                                            ` : `
-                                                <span class="badge bg-secondary-subtle text-secondary border py-1.5 px-3">
-                                                    <i class="bi bi-archive me-1"></i>Archived — Financial Actions Locked
-                                                </span>
-                                            `}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- RECORDED RECEIPTS & TRANSACTION HISTORY TABLE -->
-                            <div class="card border p-3 rounded-3 bg-white mb-3 shadow-sm">
-                                <h6 class="fw-bold mb-2 text-dark"><i class="bi bi-receipt me-2 text-primary"></i>Official Transaction & Receipt History</h6>
-                                ${(() => {
-                                    const ledgerItems = [
-                                        ...(f.transactions || []).map(t => ({
-                                            id: t.receiptNumber,
-                                            date: `${t.date} ${t.time}`,
-                                            type: t.type,
-                                            details: `Method: ${t.paymentMethod} (Ref: ${t.referenceNumber || 'N/A'})`,
-                                            amount: t.amount,
-                                            isNegative: t.type.includes('Return') || t.type.includes('Refund'),
-                                            isVoided: t.isVoided,
-                                            rawTxn: t
-                                        })),
-                                        ...(f.discountsList || []).map(d => ({
-                                            id: d.id,
-                                            date: `${d.date}`,
-                                            type: 'Discount Approved',
-                                            details: `Reason: ${escapeHtml(d.reason)} (Approved By: ${escapeHtml(d.approvedBy || 'Admin')})`,
-                                            amount: d.amount,
-                                            isNegative: true,
-                                            isVoided: false,
-                                            rawDiscount: d
-                                        })),
-                                        ...(f.extraChargesList || []).map(c => ({
-                                            id: c.id,
-                                            date: `${c.date}`,
-                                            type: `Extra Charge (${escapeHtml(c.category)})`,
-                                            details: `Remarks: ${escapeHtml(c.remarks || 'No remarks')} (Added By: ${escapeHtml(c.addedBy || 'Admin')})`,
-                                            amount: c.amount,
-                                            isNegative: false,
-                                            isVoided: false,
-                                            rawCharge: c
-                                        }))
-                                    ];
-
-                                    if (ledgerItems.length === 0) {
-                                        return `<div class="text-muted small py-3 text-center"><i class="bi bi-journal-x me-1"></i>No payment, charge, or discount records in ledger yet.</div>`;
-                                    }
-
-                                    return `
-                                        <div class="table-responsive">
-                                            <table class="table table-sm table-hover table-bordered align-middle mb-0" id="modal-ledger-table">
-                                                <thead class="table-light">
-                                                    <tr>
-                                                        <th>Ref / Receipt No</th>
-                                                        <th>Category / Type</th>
-                                                        <th>Transaction Details</th>
-                                                        <th class="text-end">Amount</th>
-                                                        <th>Status</th>
-                                                        <th class="text-end pe-3">Action</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    ${ledgerItems.map(item => `
-                                                        <tr class="ledger-row ${item.isVoided ? 'bg-light text-muted opacity-75' : ''}" data-search-text="${(item.id + ' ' + item.type + ' ' + item.details + ' ' + b.id + ' ' + b.customerName).toLowerCase()}">
-                                                            <td class="fw-semibold text-primary">${item.id}</td>
-                                                            <td><span class="badge ${item.type.includes('Discount') ? 'bg-success-subtle text-success border border-success-subtle' : (item.type.includes('Extra Charge') ? 'bg-primary-subtle text-primary border border-primary-subtle' : 'bg-light text-dark border')}">${item.type}</span></td>
-                                                            <td class="small text-muted">${item.details}</td>
-                                                            <td class="text-end fw-bold ${item.isVoided ? 'text-decoration-line-through text-muted' : (item.isNegative ? 'text-danger' : 'text-dark')}">${item.isNegative ? '-' : '+'}₹${item.amount.toLocaleString()}</td>
-                                                            <td>${item.isVoided ? '<span class="badge bg-danger-subtle text-danger border border-danger-subtle">VOIDED</span>' : '<span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>'}</td>
-                                                            <td class="text-end pe-3">
-                                                                ${item.rawTxn && !item.isVoided ? `
-                                                                    <button class="btn btn-sm btn-outline-dark py-0 px-2 btn-print-rcpt me-1" data-id="${b.id}" data-rcpt="${item.rawTxn.receiptNumber}" title="Print Receipt">
-                                                                        <i class="bi bi-printer"></i>
-                                                                    </button>
-                                                                ` : ''}
-                                                                ${item.rawTxn && !item.isVoided && currentRole === 'Admin' ? `
-                                                                    <button class="btn btn-sm btn-outline-danger py-0 px-2 btn-modal-void-rcpt" data-rcpt="${item.rawTxn.receiptNumber}">
-                                                                        <i class="bi bi-slash-circle me-1"></i>Void
-                                                                    </button>
-                                                                ` : (item.rawCharge && currentRole === 'Admin' ? `
-                                                                    <button class="btn btn-sm btn-outline-danger py-0 px-2 btn-revert-charge" data-id="${b.id}" data-charge-id="${item.rawCharge.id}">
-                                                                        <i class="bi bi-arrow-counterclockwise me-1"></i>Revert
-                                                                    </button>
-                                                                ` : (item.rawDiscount && currentRole === 'Admin' ? `
-                                                                    <button class="btn btn-sm btn-outline-danger py-0 px-2 btn-revert-discount" data-id="${b.id}" data-discount-id="${item.rawDiscount.id}">
-                                                                        <i class="bi bi-arrow-counterclockwise me-1"></i>Revert
-                                                                    </button>
-                                                                ` : '-'))}
-                                                            </td>
-                                                        </tr>
-                                                    `).join('')}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    `;
-                                })()}
-                            </div>
-
-                            <!-- DISCOUNTS & EXTRA CHARGES ITEMIZATION -->
+                        <!-- TAB 2: CONTRACT DETAILS -->
+                        <div class="tab-pane fade p-1" id="tab-contract">
                             <div class="row g-3 mb-3">
+                                <div class="col-12 col-md-7">
+                                    <div class="p-3 bg-white border rounded-3 h-100 shadow-sm">
+                                        <div class="d-flex justify-content-between align-items-center mb-2 pb-1 border-bottom">
+                                            <h6 class="fw-bold text-success mb-0"><i class="bi bi-calculator me-2"></i>Financial Contract Summary</h6>
+                                            <div class="d-flex gap-1">
+                                                ${f.canProcessFinancials ? `
+                                                    <button class="btn btn-sm btn-outline-primary btn-modal-add-charge py-0.5 px-2" data-id="${b.id}"><i class="bi bi-plus-circle me-1"></i>Extra Charge</button>
+                                                    <button class="btn btn-sm btn-outline-success btn-modal-approve-discount py-0.5 px-2" data-id="${b.id}"><i class="bi bi-percent me-1"></i>Discount</button>
+                                                ` : ''}
+                                            </div>
+                                        </div>
+                                        <div class="d-flex justify-content-between py-1.5 border-bottom"><span>Base Hall Rent:</span> <strong>₹${(f.hallRent || 0).toLocaleString()}</strong></div>
+                                        ${f.baseDiscount > 0 ? `
+                                            <div class="d-flex justify-content-between py-1.5 border-bottom text-success"><span>Initial Base Discount:</span> <strong>-₹${f.baseDiscount.toLocaleString()}</strong></div>
+                                        ` : ''}
+                                        ${(f.discountsList || []).map(d => `
+                                            <div class="d-flex justify-content-between py-1.5 border-bottom text-success"><span>Approved Discount (${escapeHtml(d.reason)}):</span> <strong>-₹${d.amount.toLocaleString()}</strong></div>
+                                        `).join('')}
+                                        ${(f.extraChargesList || []).map(c => `
+                                            <div class="d-flex justify-content-between py-1.5 border-bottom text-primary"><span>Extra Charge (${escapeHtml(c.category)}):</span> <strong>+₹${c.amount.toLocaleString()}</strong></div>
+                                        `).join('')}
+                                        <div class="d-flex justify-content-between py-2 border-bottom fw-bold text-dark fs-6 bg-light px-2 rounded"><span>Net Hall Rent:</span> <strong>₹${(f.netRent || 0).toLocaleString()}</strong></div>
+                                        ${f.showDepositInContract ? `
+                                            <div class="d-flex justify-content-between py-1.5 border-bottom text-purple" style="color:#7c3aed;"><span>Security Deposit Configured:</span> <strong>₹${(f.securityDeposit || 0).toLocaleString()}</strong></div>
+                                        ` : ''}
+                                        <div class="d-flex justify-content-between py-2 fw-bold text-primary fs-6"><span>Total Contract Amount:</span> <strong>₹${(f.totalContractAmount || 0).toLocaleString()}</strong></div>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-5">
+                                    <div class="p-3 bg-white border rounded-3 h-100 shadow-sm">
+                                        <h6 class="fw-bold mb-2 pb-1 border-bottom text-dark"><i class="bi bi-cash-stack me-2 text-success"></i>Current Account Balances</h6>
+                                        <div class="vstack gap-2 mt-2">
+                                            <div class="p-2.5 bg-light rounded border d-flex justify-content-between align-items-center">
+                                                <div class="text-muted small">Net Rent Paid</div>
+                                                <div class="fw-bold text-success fs-6">₹${(f.netRentPaid || 0).toLocaleString()}</div>
+                                            </div>
+                                            <div class="p-2.5 bg-light rounded border d-flex justify-content-between align-items-center">
+                                                <div class="text-muted small">Remaining Rent Due</div>
+                                                <div class="fw-bold ${f.overpaidAmount > 0 ? 'text-warning' : ((f.remainingRent || 0) > 0 ? 'text-danger' : 'text-success')} fs-6">
+                                                    ${f.overpaidAmount > 0 ? `Overpaid ₹${f.overpaidAmount.toLocaleString()}` : `₹${(f.remainingRent || 0).toLocaleString()}`}
+                                                </div>
+                                            </div>
+                                            <div class="p-2.5 bg-light rounded border d-flex justify-content-between align-items-center">
+                                                <div class="text-muted small">Security Deposit Paid</div>
+                                                <div class="fw-bold fs-6" style="color:#7c3aed;">₹${(f.depositPaid || 0).toLocaleString()}</div>
+                                            </div>
+                                            <div class="p-2.5 bg-light rounded border d-flex justify-content-between align-items-center">
+                                                <div class="text-muted small">Effective Deposit Held</div>
+                                                <div class="fw-bold text-primary fs-6">₹${(f.effectiveDepositHeld || 0).toLocaleString()}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- ITEMIZATION CARDS (Extra Charges & Discounts) -->
+                            <div class="row g-3">
                                 <div class="col-12 col-md-6">
                                     <div class="card border p-3 rounded-3 bg-white h-100 shadow-sm">
                                         <h6 class="fw-bold text-dark mb-2"><i class="bi bi-receipt-cutoff me-2 text-primary"></i>Itemized Extra Charges</h6>
@@ -1648,64 +1519,107 @@ function initApp() {
                                     </div>
                                 </div>
                             </div>
+                        </div>
 
-                            <!-- EMBEDDED AUDIT HISTORY WITH GIT-STYLE DIFFS -->
-                            <div class="card border p-3 rounded-3 bg-white shadow-sm">
-                                <h6 class="fw-bold text-dark mb-2"><i class="bi bi-shield-check me-2 text-primary"></i>System Audit Trail & Git-Style Diffs</h6>
-                                ${(b.auditLogs || []).length === 0 ? `
-                                    <div class="text-muted small py-2 text-center">No audit log records for this booking.</div>
-                                ` : `
-                                    <div class="table-responsive">
-                                        <table class="table table-hover table-sm align-middle mb-0">
-                                            <thead class="table-light">
-                                                <tr>
-                                                    <th>Audit ID</th>
-                                                    <th>Module</th>
-                                                    <th>Action Performed</th>
-                                                    <th>Value Change Details</th>
-                                                    <th>Date & Time</th>
-                                                    <th>User</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                ${(b.auditLogs || []).map(a => {
-                                                    let modBadge = '<span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="bi bi-calendar-event me-1"></i>Booking</span>';
-                                                    if (a.module === 'Financial Contract') {
-                                                        modBadge = '<span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-calculator me-1"></i>Contract</span>';
-                                                    } else if (a.module === 'Payment Ledger') {
-                                                        modBadge = '<span class="badge bg-info-subtle text-info border border-info-subtle"><i class="bi bi-journal-text me-1"></i>Ledger</span>';
-                                                    }
-
-                                                    return `
-                                                        <tr class="audit-row" data-search-text="${(a.id + ' ' + a.module + ' ' + a.action + ' ' + a.user + ' ' + b.id + ' ' + b.customerName).toLowerCase()}">
-                                                            <td class="fw-bold text-dark">${a.id}</td>
-                                                            <td>${modBadge}</td>
-                                                            <td class="fw-semibold text-dark">${escapeHtml(a.action)}</td>
-                                                            <td>${renderDiffCell(a)}</td>
-                                                            <td class="small text-muted">${a.date} ${a.time}</td>
-                                                            <td><span class="badge bg-light text-dark border"><i class="bi bi-person me-1"></i>${escapeHtml(a.user)}</span></td>
-                                                        </tr>
-                                                    `;
-                                                }).join('')}
-                                            </tbody>
-                                        </table>
+                        <!-- TAB 3: FINANCIAL LEDGER (INDIVIDUAL CUSTOMER LEDGER ONLY) -->
+                        <div class="tab-pane fade p-1" id="tab-ledger">
+                            <!-- SEARCH & FINANCIAL ACTIONS TOOLBAR -->
+                            <div class="p-3 bg-light border rounded-3 mb-3">
+                                <div class="row g-2 align-items-center">
+                                    <div class="col-12 col-md-5">
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                                            <input type="text" class="form-control border-start-0" id="modal-ledger-search-input" placeholder="Search by Receipt No, Type, Method...">
+                                        </div>
                                     </div>
-                                `}
+                                    <div class="col-12 col-md-7 text-md-end">
+                                        <div class="d-flex flex-wrap gap-2 justify-content-md-end">
+                                            <button class="btn btn-sm btn-outline-dark btn-print-full-receipt" data-id="${b.id}">
+                                                <i class="bi bi-printer me-1"></i>Print Statement
+                                            </button>
+                                            ${f.canProcessFinancials ? `
+                                                ${(f.remainingRent || 0) > 0 ? `<button class="btn btn-sm btn-success btn-modal-collect-pay" data-id="${b.id}"><i class="bi bi-cash-stack me-1"></i>Collect Payment</button>` : ''}
+                                                <button class="btn btn-sm btn-primary btn-modal-manage-dep" data-id="${b.id}">
+                                                    <i class="bi bi-shield-check me-1"></i>${(f.effectiveDepositHeld || 0) > 0 ? `Manage Deposit (₹${f.effectiveDepositHeld.toLocaleString()} Held)` : 'Collect / Manage Deposit'}
+                                                </button>
+                                            ` : `
+                                                <span class="badge bg-secondary-subtle text-secondary border py-1.5 px-3">
+                                                    <i class="bi bi-archive me-1"></i>Archived — Financial Actions Locked
+                                                </span>
+                                            `}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- RECORDED RECEIPTS & TRANSACTION HISTORY TABLE -->
+                            <div class="card border p-3 rounded-3 bg-white mb-3 shadow-sm">
+                                <h6 class="fw-bold mb-2 text-dark"><i class="bi bi-receipt me-2 text-primary"></i>Official Transaction & Receipt History</h6>
+                                ${(() => {
+                                    const ledgerItems = [
+                                        ...(f.transactions || []).map(t => ({
+                                            id: t.receiptNumber,
+                                            date: `${t.date} ${t.time}`,
+                                            type: t.type,
+                                            details: `Method: ${t.paymentMethod} (Ref: ${t.referenceNumber || 'N/A'})`,
+                                            amount: t.amount,
+                                            isNegative: t.type.includes('Return') || t.type.includes('Refund'),
+                                            isVoided: t.isVoided,
+                                            rawTxn: t
+                                        }))
+                                    ];
+
+                                    if (ledgerItems.length === 0) {
+                                        return `<div class="text-muted small py-3 text-center"><i class="bi bi-journal-x me-1"></i>No payment transactions recorded in ledger for this customer yet.</div>`;
+                                    }
+
+                                    return `
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-hover table-bordered align-middle mb-0" id="modal-ledger-table">
+                                                <thead class="table-light">
+                                                    <tr>
+                                                        <th>Receipt No</th>
+                                                        <th>Category / Type</th>
+                                                        <th>Transaction Details</th>
+                                                        <th class="text-end">Amount</th>
+                                                        <th>Status</th>
+                                                        <th class="text-end pe-3">Action</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    ${ledgerItems.map(item => `
+                                                        <tr class="ledger-row ${item.isVoided ? 'bg-light text-muted opacity-75' : ''}" data-search-text="${(item.id + ' ' + item.type + ' ' + item.details + ' ' + b.id + ' ' + b.customerName).toLowerCase()}">
+                                                            <td class="fw-semibold text-primary font-monospace">${item.id}</td>
+                                                            <td><span class="badge-txn-type ${item.type.includes('Deposit') ? 'badge-txn-deposit' : (item.type.includes('Advance') ? 'badge-txn-advance' : (item.type.includes('Refund') ? 'badge-txn-refund' : 'badge-txn-rent'))}">${item.type}</span></td>
+                                                            <td class="small text-muted">${item.details}</td>
+                                                            <td class="text-end fw-bold ${item.isVoided ? 'text-decoration-line-through text-muted' : (item.isNegative ? 'text-danger' : 'text-dark')}">${item.isNegative ? '-' : '+'}₹${item.amount.toLocaleString()}</td>
+                                                            <td>${item.isVoided ? '<span class="badge bg-danger-subtle text-danger border border-danger-subtle">VOIDED</span>' : '<span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>'}</td>
+                                                            <td class="text-end pe-3">
+                                                                ${item.rawTxn && !item.isVoided ? `
+                                                                    <button class="btn btn-sm btn-outline-dark py-0.5 px-2 btn-print-rcpt me-1" data-id="${b.id}" data-rcpt="${item.rawTxn.receiptNumber}" title="Print / Download Receipt">
+                                                                        <i class="bi bi-printer me-1"></i>Receipt
+                                                                    </button>
+                                                                ` : ''}
+                                                                ${item.rawTxn && !item.isVoided && currentRole === 'Admin' ? `
+                                                                    <button class="btn btn-sm btn-outline-danger py-0.5 px-2 btn-modal-void-rcpt" data-rcpt="${item.rawTxn.receiptNumber}">
+                                                                        <i class="bi bi-slash-circle me-1"></i>Void
+                                                                    </button>
+                                                                ` : ''}
+                                                            </td>
+                                                        </tr>
+                                                    `).join('')}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    `;
+                                })()}
                             </div>
                         </div>
 
-                        <!-- TAB 3: ACTIVITY TIMELINE -->
+                        <!-- TAB 4: ACTIVITY TIMELINE -->
                         <div class="tab-pane fade p-1" id="tab-timeline">
                             <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
                                 <span class="fw-bold text-dark"><i class="bi bi-clock-history me-2 text-primary"></i>Activity & Lifecycle Timeline</span>
-                                <div class="d-flex gap-2">
-                                    <button class="btn btn-sm btn-outline-primary btn-modal-add-charge" data-id="${b.id}">
-                                        <i class="bi bi-plus-circle me-1"></i>Add Extra Charge
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-success btn-modal-approve-discount" data-id="${b.id}">
-                                        <i class="bi bi-percent me-1"></i>Approve Discount
-                                    </button>
-                                </div>
                             </div>
                             ${(b.timeline || []).length === 0 ? `
                                 <div class="text-center py-4 text-muted">
@@ -1741,6 +1655,73 @@ function initApp() {
                                 </div>
                             `}
                         </div>
+
+                        <!-- TAB 5: AUDIT TRAIL & GATE STYLE DIFFERENCE (PERSON-SPECIFIC) -->
+                        <div class="tab-pane fade p-1" id="tab-audit">
+                            <div class="card border p-3 rounded-3 bg-white shadow-sm">
+                                <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 pb-2 border-bottom gap-2">
+                                    <div>
+                                        <h6 class="fw-bold text-dark mb-0">
+                                            <i class="bi bi-shield-check me-2 text-primary"></i>Audit Trail & Gate Style Difference
+                                        </h6>
+                                        <small class="text-muted">Viewing audit logs & field-level diffs for <strong>${escapeHtml(b.customerName)}</strong> (${b.id})</small>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle">${(b.auditLogs || []).length} Person Audit Entries</span>
+                                    </div>
+                                </div>
+                                ${(b.auditLogs || []).length === 0 ? `
+                                    <div class="text-muted small py-4 text-center">
+                                        <i class="bi bi-journal-x fs-3 d-block mb-2 text-muted"></i>
+                                        No audit log records found for ${escapeHtml(b.customerName)} (${b.id}).
+                                    </div>
+                                ` : `
+                                    <div class="mb-3">
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                                            <input type="text" class="form-control border-start-0" id="modal-audit-search-input" placeholder="Filter this person's audit entries by action, module, diff, user...">
+                                        </div>
+                                    </div>
+                                    <div class="table-responsive">
+                                        <table class="table table-hover table-sm align-middle mb-0">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Audit ID</th>
+                                                    <th>Module</th>
+                                                    <th>Action Performed</th>
+                                                    <th style="min-width: 260px;">Gate Style Difference</th>
+                                                    <th>Date & Time</th>
+                                                    <th>User</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                ${(b.auditLogs || []).map(a => {
+                                                    let modBadge = '<span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="bi bi-calendar-event me-1"></i>Booking</span>';
+                                                    if (a.module === 'Financial Contract') {
+                                                        modBadge = '<span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-calculator me-1"></i>Contract</span>';
+                                                    } else if (a.module === 'Payment Ledger') {
+                                                        modBadge = '<span class="badge bg-info-subtle text-info border border-info-subtle"><i class="bi bi-journal-text me-1"></i>Ledger</span>';
+                                                    }
+
+                                                    const searchText = `${a.id} ${a.module} ${a.action} ${a.user} ${a.date} ${JSON.stringify(a.changes || {})}`.toLowerCase();
+
+                                                    return `
+                                                        <tr class="modal-audit-row" data-search-text="${escapeHtml(searchText)}">
+                                                            <td class="fw-bold text-dark font-monospace">${a.id}</td>
+                                                            <td>${modBadge}</td>
+                                                            <td class="fw-semibold text-dark">${escapeHtml(a.action)}</td>
+                                                            <td>${renderDiffCell(a)}</td>
+                                                            <td class="small text-muted text-nowrap">${a.date}<br>${a.time}</td>
+                                                            <td><span class="badge bg-light text-dark border"><i class="bi bi-person me-1"></i>${escapeHtml(a.user || 'Admin')}</span></td>
+                                                        </tr>
+                                                    `;
+                                                }).join('')}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                `}
+                            </div>
+                        </div>
                     </div>
                 `;
 
@@ -1749,7 +1730,23 @@ function initApp() {
                 if (ledgerSearchInput) {
                     ledgerSearchInput.addEventListener('input', (e) => {
                         const term = (e.target.value || '').toLowerCase().trim();
-                        body.querySelectorAll('.ledger-row, .audit-row').forEach(row => {
+                        body.querySelectorAll('.ledger-row').forEach(row => {
+                            const text = row.getAttribute('data-search-text') || '';
+                            if (!term || text.includes(term)) {
+                                row.classList.remove('d-none');
+                            } else {
+                                row.classList.add('d-none');
+                            }
+                        });
+                    });
+                }
+
+                // Search Filter Listener in Person Audit Tab
+                const modalAuditSearchInput = body.querySelector('#modal-audit-search-input');
+                if (modalAuditSearchInput) {
+                    modalAuditSearchInput.addEventListener('input', (e) => {
+                        const term = (e.target.value || '').toLowerCase().trim();
+                        body.querySelectorAll('.modal-audit-row').forEach(row => {
                             const text = row.getAttribute('data-search-text') || '';
                             if (!term || text.includes(term)) {
                                 row.classList.remove('d-none');
@@ -1788,6 +1785,14 @@ function initApp() {
                         openQuickDiscountModal(bookingId);
                     });
                 });
+
+                const modalEditBookingBtn = body.querySelector('.btn-modal-edit-booking');
+                if (modalEditBookingBtn) {
+                    modalEditBookingBtn.addEventListener('click', () => {
+                        viewBookingModal.hide();
+                        openEditModal(bookingId);
+                    });
+                }
 
                 const modalUnarchiveBtn = body.querySelector('.btn-modal-unarchive');
                 if (modalUnarchiveBtn) {
@@ -1835,7 +1840,7 @@ function initApp() {
 
                 body.querySelectorAll('.btn-print-rcpt').forEach(btn => {
                     btn.addEventListener('click', () => {
-                        printReceipt(bookingId, btn.getAttribute('data-rcpt'));
+                        openReceiptModal(btn.getAttribute('data-rcpt'));
                     });
                 });
 
@@ -2326,9 +2331,13 @@ function initApp() {
         voidModal.show();
     }
 
-    // Open Printable Receipt Modal (HBR Format)
+    // Global active receipt tracker
+    let activeReceiptNumber = null;
+
+    // Open Printable Receipt Modal (Clean Modern Layout - No Signatures)
     async function openReceiptModal(receiptNumber) {
         try {
+            activeReceiptNumber = receiptNumber;
             const res = await fetch(`/api/payments/receipt/${receiptNumber}`);
             const result = await res.json();
             if (result.success) {
@@ -2340,85 +2349,76 @@ function initApp() {
                 ` : '';
 
                 area.innerHTML = `
-                    <div class="position-relative">
+                    <div class="position-relative receipt-box p-4 bg-white rounded-3 border shadow-sm" id="printable-receipt-card">
                         ${voidWatermarkHTML}
 
-                        <div class="receipt-header text-center border-bottom pb-3 mb-3">
-                            <h4 class="fw-bold text-primary mb-1"><i class="bi bi-building-gear me-2"></i>HALL BOOKING MANAGEMENT SYSTEM</h4>
-                            <div class="small text-muted">Official Payment Receipt / Transaction Voucher</div>
-                            <div class="badge bg-dark text-white px-3 py-1 mt-2 fs-6">${receipt.receiptNumber}</div>
+                        <!-- Header -->
+                        <div class="text-center border-bottom pb-3 mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="badge bg-primary px-3 py-1.5 fs-6 fw-semibold"><i class="bi bi-building me-1"></i>HALL BOOKING ERP</span>
+                                <span class="badge ${receipt.isVoided ? 'bg-danger' : 'bg-success'} px-3 py-1.5 fs-6">${receipt.isVoided ? 'VOIDED' : 'PAID & VERIFIED'}</span>
+                            </div>
+                            <h4 class="fw-bold text-dark mb-0 mt-1">OFFICIAL PAYMENT RECEIPT</h4>
+                            <div class="text-muted small">E-Receipt & Transaction Voucher</div>
+                            <div class="badge bg-light text-dark border font-monospace px-3 py-1 mt-2 fs-6">${receipt.receiptNumber}</div>
                         </div>
 
-                        <div class="row mb-3 small">
+                        <!-- 2-Column Info Grid -->
+                        <div class="row g-2 mb-3 small">
                             <div class="col-6">
-                                <div><strong>Booking ID:</strong> ${summary.bookingId}</div>
-                                <div><strong>Customer Name:</strong> ${escapeHtml(summary.customerName)}</div>
-                                <div><strong>Mobile Number:</strong> ${escapeHtml(summary.mobileNumber)}</div>
-                                <div><strong>Event Purpose:</strong> ${escapeHtml(summary.eventName)}</div>
-                            </div>
-                            <div class="col-6 text-end">
-                                <div><strong>Receipt Date:</strong> ${receipt.date} ${receipt.time}</div>
-                                <div><strong>Transaction ID:</strong> ${receipt.id}</div>
-                                <div><strong>Hall Allocated:</strong> ${summary.hall}</div>
-                                <div><strong>Event Date:</strong> ${summary.bookingDate}</div>
-                            </div>
-                        </div>
-
-                        <div class="table-responsive mb-3">
-                            <table class="table table-bordered table-sm mb-0 align-middle">
-                                <thead class="bg-light">
-                                    <tr>
-                                        <th>Category</th>
-                                        <th>Method & Reference</th>
-                                        <th>Collector</th>
-                                        <th class="text-end">Amount Paid</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td>
-                                            <div class="fw-bold">${receipt.type}</div>
-                                            <div class="small text-muted">${escapeHtml(receipt.remarks || 'Standard Transaction')}</div>
-                                        </td>
-                                        <td>
-                                            <div><strong>${receipt.paymentMethod}</strong></div>
-                                            <div class="small text-muted">Ref: ${escapeHtml(receipt.referenceNumber)}</div>
-                                        </td>
-                                        <td><span class="small">${escapeHtml(receipt.collectedBy)}</span></td>
-                                        <td class="text-end fw-bold fs-5 ${receipt.isVoided ? 'text-decoration-line-through text-muted' : 'text-success'}">₹${receipt.amount.toLocaleString()}</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        ${receipt.isVoided ? `
-                            <div class="alert alert-danger p-2 small mb-3">
-                                <strong>Void Information:</strong> This receipt was voided on ${receipt.voidedAt} by ${receipt.voidedBy}. Reason: ${escapeHtml(receipt.voidReason)}
-                            </div>
-                        ` : ''}
-
-                        <div class="p-3 bg-light rounded-3 mb-4 small">
-                            <div class="row">
-                                <div class="col-6">
-                                    <div>Net Hall Rent: <strong>₹${summary.netRent.toLocaleString()}</strong></div>
-                                    <div>Total Rent Paid: <strong class="text-success">₹${summary.netRentPaid.toLocaleString()} (${summary.paymentPercentage}%)</strong></div>
+                                <div class="p-3 bg-light rounded border h-100">
+                                    <div class="text-muted mb-1 fw-bold text-uppercase" style="font-size:0.7rem; letter-spacing: 0.5px;">Customer Details</div>
+                                    <div class="fw-bold fs-6 text-dark">${escapeHtml(summary.customerName)}</div>
+                                    <div class="text-muted"><i class="bi bi-telephone me-1"></i>${escapeHtml(summary.mobileNumber)}</div>
+                                    <div class="mt-1"><strong>Event:</strong> ${escapeHtml(summary.eventName)}</div>
+                                    <div><strong>Booking ID:</strong> <span class="font-monospace text-primary fw-bold">${summary.bookingId}</span></div>
                                 </div>
-                                <div class="col-6 text-end">
-                                    <div>Remaining Rent Due: <strong class="text-danger">₹${summary.remainingRent.toLocaleString()}</strong></div>
-                                    <div>Deposit Held: <strong>₹${summary.effectiveDepositHeld.toLocaleString()} (${summary.depositStatus})</strong></div>
+                            </div>
+                            <div class="col-6">
+                                <div class="p-3 bg-light rounded border h-100">
+                                    <div class="text-muted mb-1 fw-bold text-uppercase" style="font-size:0.7rem; letter-spacing: 0.5px;">Transaction Details</div>
+                                    <div><strong>Date & Time:</strong> ${receipt.date} ${receipt.time}</div>
+                                    <div><strong>Hall:</strong> <span class="hall-pill ${summary.hall === 'Hall 1' ? 'hall-1' : 'hall-2'} py-0 px-2">${summary.hall}</span></div>
+                                    <div><strong>Event Date:</strong> ${summary.bookingDate} (${summary.startTime || ''} - ${summary.endTime || ''})</div>
+                                    <div><strong>Payment Mode:</strong> ${receipt.paymentMethod}</div>
+                                    <div><strong>Ref / UTR:</strong> ${escapeHtml(receipt.referenceNumber || 'N/A')}</div>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="row pt-4 mt-4 border-top text-center small">
-                            <div class="col-6">
-                                <div class="text-muted mb-4">Collected By</div>
-                                <div class="fw-bold border-top d-inline-block pt-1 px-4">${escapeHtml(receipt.collectedBy || 'Authorized Staff')}</div>
+                        <!-- Highlighted Amount Card -->
+                        <div class="p-3 rounded-3 border mb-3 text-center ${receipt.isVoided ? 'bg-light' : 'bg-success-subtle border-success-subtle'}">
+                            <div class="text-muted small fw-semibold text-uppercase">Amount Received for ${receipt.type}</div>
+                            <h2 class="fw-bold mb-1 ${receipt.isVoided ? 'text-decoration-line-through text-muted' : 'text-success'}">₹${receipt.amount.toLocaleString()}</h2>
+                            <div class="small text-muted">${escapeHtml(receipt.remarks || 'Payment successfully recorded into the system ledger.')}</div>
+                        </div>
+
+                        <!-- Account Summary Bar -->
+                        <div class="p-2.5 bg-light rounded-3 border mb-3 small">
+                            <div class="row text-center g-2">
+                                <div class="col-3 border-end">
+                                    <div class="text-muted" style="font-size:0.75rem;">Net Hall Rent</div>
+                                    <div class="fw-bold text-dark">₹${summary.netRent.toLocaleString()}</div>
+                                </div>
+                                <div class="col-3 border-end">
+                                    <div class="text-muted" style="font-size:0.75rem;">Total Rent Paid</div>
+                                    <div class="fw-bold text-success">₹${summary.netRentPaid.toLocaleString()}</div>
+                                </div>
+                                <div class="col-3 border-end">
+                                    <div class="text-muted" style="font-size:0.75rem;">Rent Due</div>
+                                    <div class="fw-bold ${(summary.remainingRent || 0) > 0 ? 'text-danger' : 'text-success'}">₹${(summary.remainingRent || 0).toLocaleString()}</div>
+                                </div>
+                                <div class="col-3">
+                                    <div class="text-muted" style="font-size:0.75rem;">Deposit Held</div>
+                                    <div class="fw-bold" style="color:#7c3aed;">₹${(summary.effectiveDepositHeld || 0).toLocaleString()}</div>
+                                </div>
                             </div>
-                            <div class="col-6">
-                                <div class="text-muted mb-4">Authorized Signature</div>
-                                <div class="fw-bold border-top d-inline-block pt-1 px-4">Management Office Stamp</div>
-                            </div>
+                        </div>
+
+                        <!-- Footer (NO SIGNATURES - Computer Generated) -->
+                        <div class="text-center pt-2 border-top text-muted small" style="font-size:0.78rem;">
+                            <div class="text-dark fw-semibold mb-0.5"><i class="bi bi-check2-circle text-success me-1"></i>Computer-Generated Official Receipt • Valid without physical signatures</div>
+                            <div>For any queries or event changes, contact administration office. Thank you!</div>
                         </div>
                     </div>
                 `;
@@ -2427,6 +2427,42 @@ function initApp() {
             }
         } catch (err) {
             console.error("Error loading receipt:", err);
+        }
+    }
+
+    // Download Receipt as PDF (for sharing via WhatsApp)
+    async function downloadReceiptPDF(receiptNumber) {
+        if (!receiptNumber) {
+            showToast("No active receipt selected for download.");
+            return;
+        }
+
+        const element = document.getElementById('receipt-printable-area');
+        if (!element) {
+            showToast("Receipt container not found.");
+            return;
+        }
+
+        if (typeof html2pdf === 'undefined') {
+            showToast("PDF generator library loading, please try again in a moment.");
+            return;
+        }
+
+        const opt = {
+            margin:       [10, 10, 10, 10],
+            filename:     `Receipt-${receiptNumber}.pdf`,
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, useCORS: true, letterRendering: true },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        try {
+            showToast("Generating PDF for WhatsApp sharing...");
+            await html2pdf().set(opt).from(element).save();
+            showToast("Receipt PDF downloaded successfully!");
+        } catch (err) {
+            console.error("Error downloading receipt PDF:", err);
+            showToast("Failed to generate PDF. You can also use the Print button to Save as PDF.");
         }
     }
 
@@ -3063,9 +3099,162 @@ function initApp() {
         `;
     }
 
-    document.getElementById('avail-date-picker').addEventListener('change', () => {
+    document.getElementById('avail-date-picker')?.addEventListener('change', () => {
         if (currentView === 'availability') loadHallAvailability();
     });
+
+    // =========================================================================
+    // 10. OVERALL SUMMARY VIEW & METRICS
+    // =========================================================================
+    async function loadOverallSummaryView() {
+        try {
+            const [statsRes, bookingsRes, paymentsRes] = await Promise.all([
+                fetch('/api/payments/stats'),
+                fetch('/api/bookings'),
+                fetch('/api/payments')
+            ]);
+            const statsResult = await statsRes.json();
+            const bookingsResult = await bookingsRes.json();
+            const paymentsResult = await paymentsRes.json();
+
+            const stats = (statsResult.success && statsResult.data) ? statsResult.data : {};
+            const bookings = (bookingsResult.success && Array.isArray(bookingsResult.data)) ? bookingsResult.data : [];
+            const payments = (paymentsResult.success && Array.isArray(paymentsResult.data)) ? paymentsResult.data : [];
+
+            // Primary Metrics
+            const todayColl = stats.todayCollections || 0;
+            const rentRev = stats.totalRentRevenue || 0;
+            const dues = stats.pendingRentDues || 0;
+            const depHeld = stats.totalDepositHeld || 0;
+
+            const elToday = document.getElementById('summary-today-collection');
+            if (elToday) elToday.textContent = `₹${todayColl.toLocaleString()}`;
+            const elRev = document.getElementById('summary-total-revenue');
+            if (elRev) elRev.textContent = `₹${rentRev.toLocaleString()}`;
+            const elDues = document.getElementById('summary-pending-dues');
+            if (elDues) elDues.textContent = `₹${dues.toLocaleString()}`;
+            const elDep = document.getElementById('summary-deposits-held');
+            if (elDep) elDep.textContent = `₹${depHeld.toLocaleString()}`;
+
+            // Method Breakdown
+            const cash = stats.cashCollection || 0;
+            const upi = stats.upiCollection || 0;
+            const card = stats.cardCollection || 0;
+            const other = stats.otherCollection || 0;
+            const totalMethod = (cash + upi + card + other) || 1;
+
+            const elCash = document.getElementById('summary-cash-collection');
+            if (elCash) elCash.textContent = `₹${cash.toLocaleString()}`;
+            const elCashPct = document.getElementById('summary-cash-pct');
+            if (elCashPct) elCashPct.textContent = `${Math.round((cash / totalMethod) * 100)}% of total`;
+
+            const elUpi = document.getElementById('summary-upi-collection');
+            if (elUpi) elUpi.textContent = `₹${upi.toLocaleString()}`;
+            const elUpiPct = document.getElementById('summary-upi-pct');
+            if (elUpiPct) elUpiPct.textContent = `${Math.round((upi / totalMethod) * 100)}% of total`;
+
+            const elCard = document.getElementById('summary-card-collection');
+            if (elCard) elCard.textContent = `₹${card.toLocaleString()}`;
+            const elCardPct = document.getElementById('summary-card-pct');
+            if (elCardPct) elCardPct.textContent = `${Math.round((card / totalMethod) * 100)}% of total`;
+
+            const elOther = document.getElementById('summary-other-collection');
+            if (elOther) elOther.textContent = `₹${other.toLocaleString()}`;
+            const elOtherPct = document.getElementById('summary-other-pct');
+            if (elOtherPct) elOtherPct.textContent = `${Math.round((other / totalMethod) * 100)}% of total`;
+
+            // Hall Distribution
+            const h1Count = bookings.filter(b => b.hall === 'Hall 1').length;
+            const h2Count = bookings.filter(b => b.hall === 'Hall 2').length;
+            const totalHalls = (h1Count + h2Count) || 1;
+
+            const elH1Count = document.getElementById('summary-hall1-count');
+            if (elH1Count) elH1Count.textContent = `${h1Count} Bookings`;
+            const elH1Bar = document.getElementById('summary-hall1-bar');
+            if (elH1Bar) elH1Bar.style.width = `${Math.round((h1Count / totalHalls) * 100)}%`;
+
+            const elH2Count = document.getElementById('summary-hall2-count');
+            if (elH2Count) elH2Count.textContent = `${h2Count} Bookings`;
+            const elH2Bar = document.getElementById('summary-hall2-bar');
+            if (elH2Bar) elH2Bar.style.width = `${Math.round((h2Count / totalHalls) * 100)}%`;
+
+            // Booking Status Breakdown
+            const confirmedCount = bookings.filter(b => b.status === 'Confirmed' || b.status === 'Booked').length;
+            const completedCount = bookings.filter(b => b.status === 'Completed').length;
+            const cancelledCount = bookings.filter(b => b.status === 'Cancelled').length;
+            const archivedCount = bookings.filter(b => b.status === 'Archived').length;
+
+            const elConfirmed = document.getElementById('summary-status-confirmed');
+            if (elConfirmed) elConfirmed.textContent = confirmedCount;
+            const elCompleted = document.getElementById('summary-status-completed');
+            if (elCompleted) elCompleted.textContent = completedCount;
+            const elCancelled = document.getElementById('summary-status-cancelled');
+            if (elCancelled) elCancelled.textContent = cancelledCount;
+            const elArchived = document.getElementById('summary-status-archived');
+            if (elArchived) elArchived.textContent = archivedCount;
+
+            // Recent System Transactions
+            const recentTxBody = document.getElementById('summary-recent-tx-body');
+            if (recentTxBody) {
+                const recentTxns = payments.slice(0, 10);
+                if (recentTxns.length === 0) {
+                    recentTxBody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-muted"><i class="bi bi-inbox me-1"></i>No system transactions recorded yet.</td></tr>`;
+                } else {
+                    recentTxBody.innerHTML = recentTxns.map(t => {
+                        const isNegative = t.type.includes('Return') || t.type.includes('Refund');
+                        return `
+                            <tr class="${t.isVoided ? 'bg-light text-muted opacity-75' : ''}">
+                                <td class="fw-semibold text-primary font-monospace">${t.receiptNumber}</td>
+                                <td><span class="badge-txn-type ${t.type.includes('Deposit') ? 'badge-txn-deposit' : (t.type.includes('Advance') ? 'badge-txn-advance' : (t.type.includes('Refund') ? 'badge-txn-refund' : 'badge-txn-rent'))}">${t.type}</span></td>
+                                <td>
+                                    <div class="fw-bold">${escapeHtml(t.customerName || 'N/A')}</div>
+                                    <small class="text-muted font-monospace">${t.bookingId}</small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-dark border">${t.paymentMethod}</span>
+                                    ${t.referenceNumber ? `<small class="text-muted ms-1">${escapeHtml(t.referenceNumber)}</small>` : ''}
+                                </td>
+                                <td class="text-end fw-bold ${t.isVoided ? 'text-decoration-line-through text-muted' : (isNegative ? 'text-danger' : 'text-dark')}">
+                                    ${isNegative ? '-' : '+'}₹${t.amount.toLocaleString()}
+                                </td>
+                                <td>${t.isVoided ? '<span class="badge bg-danger-subtle text-danger border border-danger-subtle">VOIDED</span>' : '<span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>'}</td>
+                                <td class="text-end pe-3">
+                                    <button class="btn btn-sm btn-outline-dark py-0.5 px-2 btn-summary-view-rcpt" data-rcpt="${t.receiptNumber}" title="View Receipt">
+                                        <i class="bi bi-receipt me-1"></i>Receipt
+                                    </button>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
+
+                    recentTxBody.querySelectorAll('.btn-summary-view-rcpt').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            openReceiptModal(btn.getAttribute('data-rcpt'));
+                        });
+                    });
+                }
+            }
+        } catch (err) {
+            console.error("Error loading overall summary view:", err);
+        }
+    }
+
+    // Refresh Overall Summary Button
+    const refreshOverallSummaryBtn = document.getElementById('btn-refresh-overall-summary');
+    if (refreshOverallSummaryBtn) {
+        refreshOverallSummaryBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            loadOverallSummaryView();
+        });
+    }
+
+    // PDF Download for WhatsApp in Receipt Modal
+    const downloadReceiptPdfBtn = document.getElementById('btn-download-receipt-pdf');
+    if (downloadReceiptPdfBtn) {
+        downloadReceiptPdfBtn.addEventListener('click', () => {
+            downloadReceiptPDF(activeReceiptNumber);
+        });
+    }
 
 
 

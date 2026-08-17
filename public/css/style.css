@@ -201,6 +201,40 @@ body {
 .badge-dep.Deposit-Adjusted { background-color: #e0e7ff; color: #3730a3; }
 .badge-dep.N\/A { background-color: #f1f5f9; color: #94a3b8; }
 
+/* Purple Utility Classes */
+.bg-purple-subtle { background-color: #ede9fe !important; }
+.text-purple { color: #5b21b6 !important; }
+.border-purple-subtle { border-color: #c4b5fd !important; }
+
+/* Transaction Type Badges */
+.badge-txn-type {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.76rem;
+    display: inline-block;
+}
+.badge-txn-deposit {
+    background-color: #ede9fe !important;
+    color: #5b21b6 !important;
+    border: 1px solid #c4b5fd !important;
+}
+.badge-txn-advance {
+    background-color: #e0f2fe !important;
+    color: #0369a1 !important;
+    border: 1px solid #bae6fd !important;
+}
+.badge-txn-rent {
+    background-color: #dcfce7 !important;
+    color: #15803d !important;
+    border: 1px solid #bbf7d0 !important;
+}
+.badge-txn-refund {
+    background-color: #fee2e2 !important;
+    color: #b91c1c !important;
+    border: 1px solid #fecaca !important;
+}
+
 /* Hall Badges */
 .hall-pill {
     font-weight: 600;
