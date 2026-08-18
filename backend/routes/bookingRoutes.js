@@ -5,6 +5,8 @@ const PaymentController = require('../controllers/paymentController');
 
 // REST API Endpoints for Booking Management & Lifecycle
 router.get('/stats', BookingController.getStats);
+router.get('/stats/yearly', BookingController.getYearlyStats);
+router.get('/yearly-stats', BookingController.getYearlyStats);
 router.get('/availability', BookingController.getAvailability);
 router.get('/bookings', BookingController.getAllBookings);
 router.get('/bookings/:id', BookingController.getBookingById);

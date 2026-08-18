@@ -528,6 +528,26 @@ class BookingController {
     }
 
     /**
+     * GET /api/stats/yearly?year=YYYY
+     */
+    static getYearlyStats(req, res) {
+        try {
+            const { year } = req.query;
+            const yearlyStats = BookingModel.getYearlyStats(year);
+            return res.status(200).json({
+                success: true,
+                data: yearlyStats
+            });
+        } catch (error) {
+            return res.status(500).json({
+                success: false,
+                message: 'Error fetching yearly statistics.',
+                error: error.message
+            });
+        }
+    }
+
+    /**
      * GET /api/availability?date=YYYY-MM-DD
      */
     static getAvailability(req, res) {

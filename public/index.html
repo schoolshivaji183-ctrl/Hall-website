@@ -16,6 +16,8 @@
     <link rel="stylesheet" href="css/style.css">
     <!-- html2pdf.js for Client-Side PDF Generation (WhatsApp Shareable) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- Chart.js for Interactive Charts and Yearly Visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
@@ -35,6 +37,9 @@
             </a>
             <a href="#" class="list-group-item" data-view="overall-summary" id="nav-overall-summary">
                 <i class="bi bi-pie-chart-fill"></i> Overall Summary
+            </a>
+            <a href="#" class="list-group-item" data-view="yearly-events" id="nav-yearly-events">
+                <i class="bi bi-calendar3-range"></i> Yearly Events
             </a>
             <a href="#" class="list-group-item" data-view="availability" id="nav-availability">
                 <i class="bi bi-clock-history"></i> Hall Availability
@@ -520,6 +525,270 @@
                     </div>
                 </div>
             </div>
+
+            <!-- 6. YEARLY EVENTS VIEW -->
+            <div id="view-yearly-events" class="content-view d-none">
+                <!-- Header Banner -->
+                <div class="d-flex justify-content-between align-items-center mb-3 compact-summary-banner flex-wrap gap-2">
+                    <div>
+                        <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-calendar3-range text-primary me-2"></i>Yearly Events Analytics & Trends</h6>
+                        <span class="text-muted small">Comprehensive yearly event counts, hall breakdowns, revenue growth, and monthly trends</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <div class="d-flex align-items-center gap-1 bg-white p-1 rounded-3 border shadow-xs">
+                            <label for="yearly-filter-select" class="small fw-semibold text-muted px-1"><i class="bi bi-funnel me-1"></i>Year:</label>
+                            <select class="form-select form-select-sm border-0 py-1 pe-4 fw-bold text-primary" id="yearly-filter-select" style="width: auto; min-width: 110px; cursor: pointer;">
+                                <option value="All" selected>All Years</option>
+                            </select>
+                        </div>
+                        <div class="btn-group btn-group-sm" role="group" aria-label="Chart type toggle">
+                            <button type="button" class="btn btn-outline-secondary active" id="btn-chart-type-bar" title="Bar Chart"><i class="bi bi-bar-chart-fill"></i></button>
+                            <button type="button" class="btn btn-outline-secondary" id="btn-chart-type-line" title="Line Chart"><i class="bi bi-graph-up"></i></button>
+                        </div>
+                        <button class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1" id="btn-refresh-yearly-events" title="Refresh Yearly Data">
+                            <i class="bi bi-arrow-clockwise"></i>
+                            <span class="d-none d-sm-inline">Refresh</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- KPI Summary Cards Row -->
+                <div class="row g-3 mb-4">
+                    <div class="col-12 col-sm-6 col-xl-3">
+                        <div class="card stat-card p-3 h-100 bg-white shadow-sm border-0 rounded-4">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <span class="text-muted small fw-medium" id="yearly-label-total-events">Total Events</span>
+                                    <h3 class="fw-bold mb-0 text-dark" id="yearly-stat-total-events">0</h3>
+                                    <span class="small text-muted" id="yearly-sub-total-events">All recorded events</span>
+                                </div>
+                                <div class="stat-icon icon-blue p-2 rounded-3"><i class="bi bi-calendar3-event fs-4"></i></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-sm-6 col-xl-3">
+                        <div class="card stat-card p-3 h-100 bg-white shadow-sm border-0 rounded-4">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <span class="text-muted small fw-medium" id="yearly-label-total-revenue">Revenue Earned</span>
+                                    <h3 class="fw-bold mb-0 text-success" id="yearly-stat-total-revenue">₹0</h3>
+                                    <span class="small text-muted" id="yearly-sub-total-revenue">Net rent collected</span>
+                                </div>
+                                <div class="stat-icon icon-emerald p-2 rounded-3"><i class="bi bi-cash-stack fs-4"></i></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-sm-6 col-xl-3">
+                        <div class="card stat-card p-3 h-100 bg-white shadow-sm border-0 rounded-4">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <span class="text-muted small fw-medium">Hall 1 Share</span>
+                                    <h3 class="fw-bold mb-0 text-primary" id="yearly-stat-hall1-count">0</h3>
+                                    <span class="small text-muted" id="yearly-stat-hall1-revenue">Revenue: ₹0</span>
+                                </div>
+                                <div class="stat-icon icon-blue p-2 rounded-3"><i class="bi bi-building fs-4"></i></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-sm-6 col-xl-3">
+                        <div class="card stat-card p-3 h-100 bg-white shadow-sm border-0 rounded-4">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <span class="text-muted small fw-medium">Hall 2 Share</span>
+                                    <h3 class="fw-bold mb-0 text-purple" style="color: #7c3aed;" id="yearly-stat-hall2-count">0</h3>
+                                    <span class="small text-muted" id="yearly-stat-hall2-revenue">Revenue: ₹0</span>
+                                </div>
+                                <div class="stat-icon icon-purple p-2 rounded-3"><i class="bi bi-building-check fs-4"></i></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Secondary Operational Status Metrics Row -->
+                <div class="row g-3 mb-4">
+                    <div class="col-6 col-md-3 col-xl-2">
+                        <div class="p-2.5 px-3 rounded-3 border bg-light text-center">
+                            <div class="text-muted small mb-0.5"><i class="bi bi-check-circle-fill text-success me-1"></i>Completed</div>
+                            <h5 class="fw-bold text-dark mb-0 font-monospace" id="yearly-stat-completed">0</h5>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3 col-xl-2">
+                        <div class="p-2.5 px-3 rounded-3 border bg-light text-center">
+                            <div class="text-muted small mb-0.5"><i class="bi bi-calendar-check-fill text-primary me-1"></i>Confirmed</div>
+                            <h5 class="fw-bold text-dark mb-0 font-monospace" id="yearly-stat-confirmed">0</h5>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3 col-xl-2">
+                        <div class="p-2.5 px-3 rounded-3 border bg-light text-center">
+                            <div class="text-muted small mb-0.5"><i class="bi bi-pencil-square text-warning me-1"></i>Draft Enquiries</div>
+                            <h5 class="fw-bold text-dark mb-0 font-monospace" id="yearly-stat-draft">0</h5>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3 col-xl-2">
+                        <div class="p-2.5 px-3 rounded-3 border bg-light text-center">
+                            <div class="text-muted small mb-0.5"><i class="bi bi-x-circle-fill text-danger me-1"></i>Cancelled</div>
+                            <h5 class="fw-bold text-dark mb-0 font-monospace" id="yearly-stat-cancelled">0</h5>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-6 col-xl-2">
+                        <div class="p-2.5 px-3 rounded-3 border bg-light text-center">
+                            <div class="text-muted small mb-0.5"><i class="bi bi-archive-fill text-secondary me-1"></i>Archived</div>
+                            <h5 class="fw-bold text-dark mb-0 font-monospace" id="yearly-stat-archived">0</h5>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-6 col-xl-2">
+                        <div class="p-2.5 px-3 rounded-3 border bg-light text-center">
+                            <div class="text-muted small mb-0.5"><i class="bi bi-hourglass-split text-warning me-1"></i>Pending Dues</div>
+                            <h5 class="fw-bold text-warning mb-0 font-monospace" id="yearly-stat-pending-dues">₹0</h5>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Interactive Charts Row -->
+                <div class="row g-4 mb-4">
+                    <!-- Chart 1: Events Trend & Hall Breakdown -->
+                    <div class="col-12 col-xl-7">
+                        <div class="card border-0 shadow-sm rounded-4 p-4 h-100 yearly-chart-card">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <h6 class="fw-bold mb-0 text-dark" id="yearly-events-chart-title"><i class="bi bi-bar-chart-fill text-primary me-2"></i>Yearly Events Trend by Hall</h6>
+                                    <span class="text-muted small" id="yearly-events-chart-subtitle">Event volume distribution across halls</span>
+                                </div>
+                                <span class="badge bg-primary-subtle text-primary fw-semibold" id="yearly-chart1-badge">Multi-Year</span>
+                            </div>
+                            <div class="chart-canvas-container" style="position: relative; height: 320px; width: 100%;">
+                                <canvas id="yearlyEventsChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Chart 2: Revenue Performance & Growth Trend -->
+                    <div class="col-12 col-xl-5">
+                        <div class="card border-0 shadow-sm rounded-4 p-4 h-100 yearly-chart-card">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <h6 class="fw-bold mb-0 text-dark" id="yearly-revenue-chart-title"><i class="bi bi-graph-up-arrow text-success me-2"></i>Revenue Growth (₹)</h6>
+                                    <span class="text-muted small" id="yearly-revenue-chart-subtitle">Annual rental earnings & collections</span>
+                                </div>
+                                <span class="badge bg-success-subtle text-success fw-semibold" id="yearly-chart2-badge">Financials</span>
+                            </div>
+                            <div class="chart-canvas-container" style="position: relative; height: 320px; width: 100%;">
+                                <canvas id="yearlyRevenueChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hall Distribution & Monthly Breakdown Row -->
+                <div class="row g-4 mb-4">
+                    <!-- Hall Performance Breakdown -->
+                    <div class="col-12 col-lg-5">
+                        <div class="card border-0 shadow-sm rounded-4 p-4 h-100">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-building text-primary me-2"></i>Hall Distribution & Utilization</h6>
+                                <span class="badge bg-light text-muted border small" id="yearly-hall-count-badge">Halls</span>
+                            </div>
+                            <div class="vstack gap-3" id="yearly-hall-breakdown-container">
+                                <!-- Dynamic JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Monthly Distribution / Highlights Table -->
+                    <div class="col-12 col-lg-7">
+                        <div class="card border-0 shadow-sm rounded-4 p-4 h-100">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="fw-bold mb-0 text-dark" id="yearly-monthly-table-title"><i class="bi bi-calendar-month text-primary me-2"></i>Monthly Distribution (Jan - Dec)</h6>
+                                <span class="badge bg-light text-muted border small">12 Months</span>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-hover table-sm align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Month</th>
+                                            <th class="text-center">Total Events</th>
+                                            <th class="text-center">Hall 1</th>
+                                            <th class="text-center">Hall 2</th>
+                                            <th class="text-end pe-3">Revenue Earned</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="yearly-monthly-table-body">
+                                        <!-- Dynamic JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detailed Year-by-Year Comparison Table Card -->
+                <div class="card border-0 shadow-sm rounded-4 p-4 mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                        <div>
+                            <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-table text-primary me-2"></i>Year-by-Year Performance Ledger</h6>
+                            <span class="text-muted small">Comparative event volume, hall distribution, and revenue summary by year</span>
+                        </div>
+                        <span class="badge bg-light text-muted border small font-monospace" id="yearly-table-year-count">0 Years Recorded</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-3">Year</th>
+                                    <th class="text-center">Total Events</th>
+                                    <th class="text-center">Hall 1 Events</th>
+                                    <th class="text-center">Hall 2 Events</th>
+                                    <th class="text-center">Completed</th>
+                                    <th class="text-center">Confirmed</th>
+                                    <th class="text-center">Cancelled</th>
+                                    <th class="text-end">Revenue Earned</th>
+                                    <th class="text-end">Pending Dues</th>
+                                    <th class="text-end pe-3">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="yearly-comparison-table-body">
+                                <!-- Dynamic JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Filtered Year Events Detail List -->
+                <div class="card border-0 shadow-sm rounded-4 p-4" id="yearly-events-list-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                        <div>
+                            <h6 class="fw-bold mb-0 text-dark" id="yearly-events-list-title"><i class="bi bi-card-checklist text-primary me-2"></i>Events Recorded in Selected Period</h6>
+                            <span class="text-muted small" id="yearly-events-list-subtitle">Click on any event to view complete details, financials, and receipt</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-1.5 fw-semibold" id="yearly-events-count-badge">0 Events</span>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-3">Booking ID</th>
+                                    <th>Customer & Contact</th>
+                                    <th>Event & Hall</th>
+                                    <th>Date & Slot</th>
+                                    <th>Status</th>
+                                    <th class="text-end">Net Rent</th>
+                                    <th class="text-end">Paid</th>
+                                    <th class="text-end">Due</th>
+                                    <th class="text-end pe-3">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="yearly-events-table-body">
+                                <!-- Dynamic JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     <!-- /#page-content-wrapper -->
@@ -983,6 +1252,167 @@
                     </button>
                     <button type="button" class="btn btn-primary px-3" id="btn-print-receipt-modal" onclick="window.print()">
                         <i class="bi bi-printer me-1"></i>Print Receipt
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- MODAL: YEAR-BY-YEAR PERFORMANCE LEDGER -->
+<!-- ========================================== -->
+<div class="modal fade" id="yearLedgerModal" tabindex="-1" aria-labelledby="yearLedgerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-light border-bottom py-3 px-4 rounded-top-4">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="p-2.5 bg-primary-subtle text-primary rounded-3">
+                        <i class="bi bi-journal-bookmark-fill fs-4"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title fw-bold text-dark mb-0" id="yearLedgerModalLabel">
+                            Annual Performance Ledger & Audit Breakdown
+                        </h5>
+                        <div class="d-flex align-items-center gap-2 mt-1">
+                            <span class="text-muted small">Financial summaries, hall utilization, and ledger records for</span>
+                            <span class="badge bg-dark font-monospace fs-6 px-2.5 py-0.5" id="year-ledger-modal-year">2026</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1" id="btn-print-year-ledger">
+                        <i class="bi bi-printer"></i>
+                        <span class="d-none d-sm-inline">Print Ledger</span>
+                    </button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+            </div>
+            <div class="modal-body p-4" id="year-ledger-printable-content">
+                <!-- KPI Metric Cards for Year -->
+                <div class="row g-3 mb-4">
+                    <div class="col-6 col-md-3">
+                        <div class="p-3 rounded-3 border bg-white shadow-xs h-100">
+                            <div class="text-muted small fw-medium mb-1"><i class="bi bi-calendar-event me-1 text-primary"></i>Total Events</div>
+                            <h4 class="fw-bold text-dark mb-0 font-monospace" id="year-ledger-stat-total-events">0</h4>
+                            <small class="text-muted" id="year-ledger-sub-total-events">Events conducted</small>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="p-3 rounded-3 border bg-white shadow-xs h-100">
+                            <div class="text-muted small fw-medium mb-1"><i class="bi bi-cash-stack me-1 text-success"></i>Revenue Earned</div>
+                            <h4 class="fw-bold text-success mb-0 font-monospace" id="year-ledger-stat-revenue">₹0</h4>
+                            <small class="text-muted">Net rent realized</small>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="p-3 rounded-3 border bg-white shadow-xs h-100">
+                            <div class="text-muted small fw-medium mb-1"><i class="bi bi-hourglass-split me-1 text-warning"></i>Pending Dues</div>
+                            <h4 class="fw-bold text-warning mb-0 font-monospace" id="year-ledger-stat-dues">₹0</h4>
+                            <small class="text-muted">Receivables balance</small>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="p-3 rounded-3 border bg-white shadow-xs h-100">
+                            <div class="text-muted small fw-medium mb-1"><i class="bi bi-file-earmark-text me-1 text-primary"></i>Contract Value</div>
+                            <h4 class="fw-bold text-primary mb-0 font-monospace" id="year-ledger-stat-contract">₹0</h4>
+                            <small class="text-muted">Total booked value</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hall Distribution & Lifecycle Status Row -->
+                <div class="row g-4 mb-4">
+                    <!-- Hall Breakdown -->
+                    <div class="col-12 col-lg-6">
+                        <div class="card border rounded-3 p-3 bg-light-subtle h-100">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-building text-primary me-2"></i>Hall Distribution & Utilization</h6>
+                                <span class="badge bg-white text-muted border small">Year Breakdown</span>
+                            </div>
+                            <div class="vstack gap-3" id="year-ledger-hall-breakdown">
+                                <!-- Dynamic JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Status Distribution -->
+                    <div class="col-12 col-lg-6">
+                        <div class="card border rounded-3 p-3 bg-light-subtle h-100">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-diagram-3 text-primary me-2"></i>Booking Lifecycle Distribution</h6>
+                                <span class="badge bg-white text-muted border small">Status Counts</span>
+                            </div>
+                            <div class="vstack gap-2" id="year-ledger-status-breakdown">
+                                <!-- Dynamic JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 12-Month Calendar Breakdown -->
+                <div class="card border rounded-3 p-3 mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-calendar-month text-primary me-2"></i>Monthly Performance Distribution (Jan - Dec)</h6>
+                        <span class="badge bg-light text-muted border small">12 Months</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Month</th>
+                                    <th class="text-center">Total Events</th>
+                                    <th class="text-center">Hall 1 Events</th>
+                                    <th class="text-center">Hall 2 Events</th>
+                                    <th class="text-end pe-3">Revenue Realized</th>
+                                </tr>
+                            </thead>
+                            <tbody id="year-ledger-monthly-table-body">
+                                <!-- Dynamic JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Year Bookings Ledger Records List -->
+                <div class="card border rounded-3 p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                        <div>
+                            <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-card-checklist text-primary me-2"></i>Detailed Event Ledger Records</h6>
+                            <span class="text-muted small">All bookings and audit records registered for this year</span>
+                        </div>
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1" id="year-ledger-events-count-badge">0 Events</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-3">Booking ID</th>
+                                    <th>Customer & Contact</th>
+                                    <th>Event & Hall</th>
+                                    <th>Date & Slot</th>
+                                    <th>Status</th>
+                                    <th class="text-end">Rent</th>
+                                    <th class="text-end">Paid</th>
+                                    <th class="text-end">Due</th>
+                                    <th class="text-end pe-3">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="year-ledger-events-table-body">
+                                <!-- Dynamic JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light border-top py-3 px-4 d-flex justify-content-between rounded-bottom-4">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-primary" id="btn-filter-dashboard-from-ledger">
+                        <i class="bi bi-funnel me-1"></i>Filter View to this Year
+                    </button>
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">
+                        <i class="bi bi-check2 me-1"></i>Done
                     </button>
                 </div>
             </div>

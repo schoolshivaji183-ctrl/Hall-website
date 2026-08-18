@@ -18,6 +18,7 @@ function initApp() {
     const depositActionModal = new bootstrap.Modal(document.getElementById('depositActionModal'));
     const voidModal = new bootstrap.Modal(document.getElementById('voidModal'));
     const receiptModal = new bootstrap.Modal(document.getElementById('receiptModal'));
+    const yearLedgerModal = new bootstrap.Modal(document.getElementById('yearLedgerModal'));
     const liveToast = new bootstrap.Toast(document.getElementById('liveToast'));
 
     // DOM Elements
@@ -82,6 +83,7 @@ function initApp() {
             'dashboard': 'Dashboard Overview',
             'bookings': 'Booking Management List',
             'overall-summary': 'Overall Financial & Operational Summary',
+            'yearly-events': 'Yearly Events Analytics & Trends',
             'availability': 'Hall Schedule Availability',
             'upcoming': 'Upcoming Events Schedule'
         };
@@ -94,6 +96,8 @@ function initApp() {
             loadBookingsList();
         } else if (viewName === 'overall-summary') {
             loadOverallSummaryView();
+        } else if (viewName === 'yearly-events') {
+            loadYearlyEventsView();
         } else if (viewName === 'availability') {
             loadHallAvailability();
         } else if (viewName === 'upcoming') {
@@ -108,6 +112,8 @@ function initApp() {
             loadBookingsList();
         } else if (currentView === 'overall-summary') {
             loadOverallSummaryView();
+        } else if (currentView === 'yearly-events') {
+            loadYearlyEventsView();
         } else if (currentView === 'availability') {
             loadHallAvailability();
         } else if (currentView === 'upcoming') {
@@ -3108,116 +3114,226 @@ function initApp() {
     // =========================================================================
     async function loadOverallSummaryView() {
         try {
-            const [statsRes, bookingsRes, paymentsRes] = await Promise.all([
-                fetch('/api/payments/stats'),
-                fetch('/api/bookings'),
-                fetch('/api/payments')
+            const todayStr = getTodayDateString();
+            let statsResult = { success: false, data: {} };
+            let bookingsResult = { success: false, data: [] };
+            let paymentsResult = { success: false, data: [] };
+
+            const [statsRes, bookingsRes, paymentsRes] = await Promise.allSettled([
+                fetch('/api/payments/stats').then(r => r.json()),
+                fetch('/api/bookings').then(r => r.json()),
+                fetch('/api/payments').then(r => r.json())
             ]);
-            const statsResult = await statsRes.json();
-            const bookingsResult = await bookingsRes.json();
-            const paymentsResult = await paymentsRes.json();
+
+            if (statsRes.status === 'fulfilled' && statsRes.value) statsResult = statsRes.value;
+            if (bookingsRes.status === 'fulfilled' && bookingsRes.value) bookingsResult = bookingsRes.value;
+            if (paymentsRes.status === 'fulfilled' && paymentsRes.value) paymentsResult = paymentsRes.value;
 
             const stats = (statsResult.success && statsResult.data) ? statsResult.data : {};
             const bookings = (bookingsResult.success && Array.isArray(bookingsResult.data)) ? bookingsResult.data : [];
             const payments = (paymentsResult.success && Array.isArray(paymentsResult.data)) ? paymentsResult.data : [];
 
-            // Primary Metrics
-            const todayColl = stats.todayCollections || 0;
-            const rentRev = stats.totalRentRevenue || 0;
-            const dues = stats.pendingRentDues || 0;
-            const depHeld = stats.totalDepositHeld || 0;
+            // 1. Calculate Financial Aggregates
+            const activeBookings = bookings.filter(b => b.status !== 'Cancelled' && b.status !== 'Archived');
+            let computedPendingDues = 0;
+            let computedRentRev = 0;
+            let computedDepHeld = 0;
 
-            const elToday = document.getElementById('summary-today-collection');
-            if (elToday) elToday.textContent = `₹${todayColl.toLocaleString()}`;
-            const elRev = document.getElementById('summary-total-revenue');
-            if (elRev) elRev.textContent = `₹${rentRev.toLocaleString()}`;
-            const elDues = document.getElementById('summary-pending-dues');
-            if (elDues) elDues.textContent = `₹${dues.toLocaleString()}`;
-            const elDep = document.getElementById('summary-deposits-held');
-            if (elDep) elDep.textContent = `₹${depHeld.toLocaleString()}`;
+            activeBookings.forEach(b => {
+                const f = b.financial || {};
+                computedPendingDues += (f.remainingRent !== undefined ? f.remainingRent : 0);
+                computedRentRev += (f.netRentPaid !== undefined ? f.netRentPaid : 0);
+                computedDepHeld += (f.effectiveDepositHeld !== undefined ? f.effectiveDepositHeld : 0);
+            });
 
-            // Method Breakdown
-            const cash = stats.cashCollection || 0;
-            const upi = stats.upiCollection || 0;
-            const card = stats.cardCollection || 0;
-            const other = stats.otherCollection || 0;
-            const totalMethod = (cash + upi + card + other) || 1;
+            // Today's Payment Transactions
+            const todayTxns = payments.filter(t => !t.isVoided && t.status === 'Success' && t.date === todayStr);
+            const getMethodTotal = (method) => {
+                const sum = todayTxns.reduce((acc, t) => {
+                    const matches = (method === 'Card') 
+                        ? (t.paymentMethod && t.paymentMethod.includes('Card'))
+                        : (t.paymentMethod === method);
+                    if (!matches) return acc;
+                    if (t.type && (t.type.includes('Return') || t.type.includes('Refund'))) return acc - t.amount;
+                    if (t.type && !t.type.includes('Forfeiture') && !t.type.includes('Adjustment')) return acc + t.amount;
+                    return acc;
+                }, 0);
+                return Math.max(0, sum);
+            };
 
-            const elCash = document.getElementById('summary-cash-collection');
-            if (elCash) elCash.textContent = `₹${cash.toLocaleString()}`;
-            const elCashPct = document.getElementById('summary-cash-pct');
-            if (elCashPct) elCashPct.textContent = `${Math.round((cash / totalMethod) * 100)}% of total`;
+            const cashColl = stats.cashCollection !== undefined ? stats.cashCollection : getMethodTotal('Cash');
+            const upiColl = stats.upiCollection !== undefined ? stats.upiCollection : getMethodTotal('UPI');
+            const cardColl = stats.cardCollection !== undefined ? stats.cardCollection : getMethodTotal('Card');
+            const otherColl = stats.otherCollection !== undefined ? stats.otherCollection : Math.max(0, todayTxns.reduce((acc, t) => {
+                const isKnown = t.paymentMethod === 'Cash' || t.paymentMethod === 'UPI' || (t.paymentMethod && t.paymentMethod.includes('Card'));
+                if (isKnown) return acc;
+                if (t.type && (t.type.includes('Return') || t.type.includes('Refund'))) return acc - t.amount;
+                if (t.type && !t.type.includes('Forfeiture') && !t.type.includes('Adjustment')) return acc + t.amount;
+                return acc;
+            }, 0));
 
-            const elUpi = document.getElementById('summary-upi-collection');
-            if (elUpi) elUpi.textContent = `₹${upi.toLocaleString()}`;
-            const elUpiPct = document.getElementById('summary-upi-pct');
-            if (elUpiPct) elUpiPct.textContent = `${Math.round((upi / totalMethod) * 100)}% of total`;
+            const todayTotalColl = (stats.todayCollections !== undefined) ? stats.todayCollections : Math.max(0, cashColl + upiColl + cardColl + otherColl);
+            const totalRentRevenue = (stats.totalRentRevenue !== undefined) ? stats.totalRentRevenue : computedRentRev;
+            const pendingRentDues = (stats.pendingRentDues !== undefined) ? stats.pendingRentDues : computedPendingDues;
+            const totalDepositHeld = (stats.totalDepositHeld !== undefined) ? stats.totalDepositHeld : computedDepHeld;
 
-            const elCard = document.getElementById('summary-card-collection');
-            if (elCard) elCard.textContent = `₹${card.toLocaleString()}`;
-            const elCardPct = document.getElementById('summary-card-pct');
-            if (elCardPct) elCardPct.textContent = `${Math.round((card / totalMethod) * 100)}% of total`;
+            // Update Primary KPI Cards
+            const elToday = document.getElementById('overall-stat-today-coll');
+            if (elToday) elToday.textContent = `₹${todayTotalColl.toLocaleString()}`;
 
-            const elOther = document.getElementById('summary-other-collection');
-            if (elOther) elOther.textContent = `₹${other.toLocaleString()}`;
-            const elOtherPct = document.getElementById('summary-other-pct');
-            if (elOtherPct) elOtherPct.textContent = `${Math.round((other / totalMethod) * 100)}% of total`;
+            const elRev = document.getElementById('overall-stat-total-rev');
+            if (elRev) elRev.textContent = `₹${totalRentRevenue.toLocaleString()}`;
 
-            // Hall Distribution
-            const h1Count = bookings.filter(b => b.hall === 'Hall 1').length;
-            const h2Count = bookings.filter(b => b.hall === 'Hall 2').length;
-            const totalHalls = (h1Count + h2Count) || 1;
+            const elDues = document.getElementById('overall-stat-pending-dues');
+            if (elDues) elDues.textContent = `₹${pendingRentDues.toLocaleString()}`;
 
-            const elH1Count = document.getElementById('summary-hall1-count');
-            if (elH1Count) elH1Count.textContent = `${h1Count} Bookings`;
-            const elH1Bar = document.getElementById('summary-hall1-bar');
-            if (elH1Bar) elH1Bar.style.width = `${Math.round((h1Count / totalHalls) * 100)}%`;
+            const elDep = document.getElementById('overall-stat-deposits-held');
+            if (elDep) elDep.textContent = `₹${totalDepositHeld.toLocaleString()}`;
 
-            const elH2Count = document.getElementById('summary-hall2-count');
-            if (elH2Count) elH2Count.textContent = `${h2Count} Bookings`;
-            const elH2Bar = document.getElementById('summary-hall2-bar');
-            if (elH2Bar) elH2Bar.style.width = `${Math.round((h2Count / totalHalls) * 100)}%`;
+            // Update Payment Method Breakdown Cards
+            const elCash = document.getElementById('overall-coll-cash');
+            if (elCash) elCash.textContent = `₹${cashColl.toLocaleString()}`;
 
-            // Booking Status Breakdown
-            const confirmedCount = bookings.filter(b => b.status === 'Confirmed' || b.status === 'Booked').length;
-            const completedCount = bookings.filter(b => b.status === 'Completed').length;
-            const cancelledCount = bookings.filter(b => b.status === 'Cancelled').length;
-            const archivedCount = bookings.filter(b => b.status === 'Archived').length;
+            const elUpi = document.getElementById('overall-coll-upi');
+            if (elUpi) elUpi.textContent = `₹${upiColl.toLocaleString()}`;
 
-            const elConfirmed = document.getElementById('summary-status-confirmed');
-            if (elConfirmed) elConfirmed.textContent = confirmedCount;
-            const elCompleted = document.getElementById('summary-status-completed');
-            if (elCompleted) elCompleted.textContent = completedCount;
-            const elCancelled = document.getElementById('summary-status-cancelled');
-            if (elCancelled) elCancelled.textContent = cancelledCount;
-            const elArchived = document.getElementById('summary-status-archived');
-            if (elArchived) elArchived.textContent = archivedCount;
+            const elCard = document.getElementById('overall-coll-card');
+            if (elCard) elCard.textContent = `₹${cardColl.toLocaleString()}`;
 
-            // Recent System Transactions
-            const recentTxBody = document.getElementById('summary-recent-tx-body');
+            const elOther = document.getElementById('overall-coll-other');
+            if (elOther) elOther.textContent = `₹${otherColl.toLocaleString()}`;
+
+            // 2. Hall Distribution & Performance
+            const hallBreakdownContainer = document.getElementById('overall-hall-breakdown');
+            if (hallBreakdownContainer) {
+                const totalBookingsCount = bookings.length || 1;
+                
+                // Identify distinct halls (default to Hall 1 & Hall 2 if present)
+                const hallConfig = [
+                    { name: 'Hall 1', subtitle: 'Main Grand Hall', pillClass: 'hall-1', barColor: '#0284c7', badgeBg: 'bg-primary-subtle text-primary' },
+                    { name: 'Hall 2', subtitle: 'Executive Mini Hall', pillClass: 'hall-2', barColor: '#7c3aed', badgeBg: 'style="background:#f3e8ff; color:#6b21a8;"' }
+                ];
+
+                // Check for additional dynamic halls
+                const knownHallNames = new Set(hallConfig.map(h => h.name));
+                bookings.forEach(b => {
+                    if (b.hall && !knownHallNames.has(b.hall)) {
+                        knownHallNames.add(b.hall);
+                        hallConfig.push({
+                            name: b.hall,
+                            subtitle: 'Event Venue',
+                            pillClass: 'hall-1',
+                            barColor: '#059669',
+                            badgeBg: 'bg-success-subtle text-success'
+                        });
+                    }
+                });
+
+                hallBreakdownContainer.innerHTML = hallConfig.map(hc => {
+                    const hallBookings = bookings.filter(b => b.hall === hc.name);
+                    const count = hallBookings.length;
+                    const sharePct = bookings.length > 0 ? Math.round((count / totalBookingsCount) * 100) : 0;
+                    
+                    const activeCount = hallBookings.filter(b => b.status === 'Confirmed' || b.status === 'Booked').length;
+                    const completedCount = hallBookings.filter(b => b.status === 'Completed').length;
+                    const rev = hallBookings.reduce((sum, b) => {
+                        if (b.status === 'Cancelled' || b.status === 'Archived') return sum;
+                        return sum + ((b.financial && b.financial.netRentPaid) || 0);
+                    }, 0);
+
+                    const isCustomBadge = hc.badgeBg.startsWith('style=');
+                    const badgeAttr = isCustomBadge ? `class="badge rounded-pill fw-bold" ${hc.badgeBg}` : `class="badge rounded-pill fw-bold ${hc.badgeBg}"`;
+
+                    return `
+                        <div class="p-3 rounded-3 border bg-light-subtle shadow-xs">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="hall-pill ${hc.pillClass}">${hc.name}</span>
+                                    <span class="fw-semibold text-dark small">${hc.subtitle}</span>
+                                </div>
+                                <span ${badgeAttr}>${count} Bookings (${sharePct}%)</span>
+                            </div>
+                            <div class="progress mb-2" style="height: 8px; border-radius: 4px; background-color: #e2e8f0;">
+                                <div class="progress-bar" role="progressbar" style="width: ${sharePct}%; background-color: ${hc.barColor};" aria-valuenow="${sharePct}" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                            <div class="d-flex justify-content-between text-muted small flex-wrap gap-2 pt-1 border-top border-light">
+                                <span><i class="bi bi-cash-stack me-1 text-success"></i>Revenue: <strong class="text-dark">₹${rev.toLocaleString()}</strong></span>
+                                <span><i class="bi bi-check2-circle me-1 text-primary"></i>Active: <strong class="text-dark">${activeCount}</strong></span>
+                                <span><i class="bi bi-clock-history me-1 text-secondary"></i>Completed: <strong class="text-dark">${completedCount}</strong></span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            // 3. Booking Lifecycle Distribution
+            const statusBreakdownContainer = document.getElementById('overall-status-breakdown');
+            if (statusBreakdownContainer) {
+                const totalBookingsCount = bookings.length || 1;
+                const statusList = [
+                    { label: 'Confirmed / Active', statusKey: 'Confirmed', count: bookings.filter(b => b.status === 'Confirmed' || b.status === 'Booked').length, badgeClass: 'Confirmed', barBg: 'bg-success' },
+                    { label: 'Completed Events', statusKey: 'Completed', count: bookings.filter(b => b.status === 'Completed').length, badgeClass: 'Completed', barBg: 'bg-secondary' },
+                    { label: 'Draft Bookings', statusKey: 'Draft', count: bookings.filter(b => b.status === 'Draft').length, badgeClass: 'Draft', barBg: 'bg-warning' },
+                    { label: 'Cancelled Bookings', statusKey: 'Cancelled', count: bookings.filter(b => b.status === 'Cancelled').length, badgeClass: 'Cancelled', barBg: 'bg-danger' },
+                    { label: 'Archived Records', statusKey: 'Archived', count: bookings.filter(b => b.status === 'Archived').length, badgeClass: 'Archived', barBg: 'bg-dark' }
+                ];
+
+                statusBreakdownContainer.innerHTML = statusList.map(st => {
+                    const pct = bookings.length > 0 ? Math.round((st.count / totalBookingsCount) * 100) : 0;
+                    return `
+                        <div class="p-2.5 px-3 rounded-3 border bg-light-subtle d-flex flex-column gap-1 shadow-xs">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge-status ${st.badgeClass} py-0.5 px-2.5">${st.label}</span>
+                                    <span class="text-muted small">${pct}% share</span>
+                                </div>
+                                <span class="fw-bold text-dark font-monospace">${st.count}</span>
+                            </div>
+                            <div class="progress" style="height: 6px; border-radius: 3px; background-color: #e2e8f0;">
+                                <div class="progress-bar ${st.barBg}" role="progressbar" style="width: ${pct}%;" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            // 4. Recent System Transactions Table
+            const recentTxBody = document.getElementById('overall-recent-txns-body');
             if (recentTxBody) {
                 const recentTxns = payments.slice(0, 10);
                 if (recentTxns.length === 0) {
-                    recentTxBody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-muted"><i class="bi bi-inbox me-1"></i>No system transactions recorded yet.</td></tr>`;
+                    recentTxBody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-muted"><i class="bi bi-inbox me-1"></i>No system transactions recorded yet.</td></tr>`;
                 } else {
                     recentTxBody.innerHTML = recentTxns.map(t => {
-                        const isNegative = t.type.includes('Return') || t.type.includes('Refund');
+                        const isNegative = t.type && (t.type.includes('Return') || t.type.includes('Refund'));
+                        let badgeClass = 'badge-txn-rent';
+                        if (t.type && t.type.includes('Deposit')) badgeClass = 'badge-txn-deposit';
+                        else if (t.type && t.type.includes('Advance')) badgeClass = 'badge-txn-advance';
+                        else if (t.type && (t.type.includes('Refund') || t.type.includes('Return'))) badgeClass = 'badge-txn-refund';
+
+                        const matchedBooking = bookings.find(b => b.id === t.bookingId);
+                        const customerDisplayName = (matchedBooking && matchedBooking.customerName) ? matchedBooking.customerName : (t.customerName || 'N/A');
+
                         return `
                             <tr class="${t.isVoided ? 'bg-light text-muted opacity-75' : ''}">
-                                <td class="fw-semibold text-primary font-monospace">${t.receiptNumber}</td>
-                                <td><span class="badge-txn-type ${t.type.includes('Deposit') ? 'badge-txn-deposit' : (t.type.includes('Advance') ? 'badge-txn-advance' : (t.type.includes('Refund') ? 'badge-txn-refund' : 'badge-txn-rent'))}">${t.type}</span></td>
+                                <td class="fw-semibold text-primary font-monospace">${escapeHtml(t.receiptNumber || 'N/A')}</td>
                                 <td>
-                                    <div class="fw-bold">${escapeHtml(t.customerName || 'N/A')}</div>
-                                    <small class="text-muted font-monospace">${t.bookingId}</small>
+                                    <div class="fw-bold text-dark">${escapeHtml(customerDisplayName)}</div>
+                                    <small class="text-muted font-monospace">${escapeHtml(t.bookingId || '')}</small>
+                                </td>
+                                <td><span class="badge-txn-type ${badgeClass}">${escapeHtml(t.type || 'Payment')}</span></td>
+                                <td>
+                                    <span class="badge bg-light text-dark border">${escapeHtml(t.paymentMethod || 'Cash')}</span>
+                                    ${t.referenceNumber && t.referenceNumber !== 'N/A' ? `<small class="text-muted ms-1">${escapeHtml(t.referenceNumber)}</small>` : ''}
                                 </td>
                                 <td>
-                                    <span class="badge bg-light text-dark border">${t.paymentMethod}</span>
-                                    ${t.referenceNumber ? `<small class="text-muted ms-1">${escapeHtml(t.referenceNumber)}</small>` : ''}
+                                    <div class="small fw-medium">${escapeHtml(t.date || '')}</div>
+                                    <small class="text-muted">${escapeHtml(t.time || '')}</small>
                                 </td>
-                                <td class="text-end fw-bold ${t.isVoided ? 'text-decoration-line-through text-muted' : (isNegative ? 'text-danger' : 'text-dark')}">
-                                    ${isNegative ? '-' : '+'}₹${t.amount.toLocaleString()}
+                                <td><span class="badge bg-secondary-subtle text-secondary">${escapeHtml(t.collectedBy || 'Admin')}</span></td>
+                                <td class="text-end fw-bold ${t.isVoided ? 'text-decoration-line-through text-muted' : (isNegative ? 'text-danger' : 'text-success')}">
+                                    ${isNegative ? '-' : '+'}₹${Number(t.amount || 0).toLocaleString()}
                                 </td>
-                                <td>${t.isVoided ? '<span class="badge bg-danger-subtle text-danger border border-danger-subtle">VOIDED</span>' : '<span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>'}</td>
                                 <td class="text-end pe-3">
                                     <button class="btn btn-sm btn-outline-dark py-0.5 px-2 btn-summary-view-rcpt" data-rcpt="${t.receiptNumber}" title="View Receipt">
                                         <i class="bi bi-receipt me-1"></i>Receipt
@@ -3245,6 +3361,870 @@ function initApp() {
         refreshOverallSummaryBtn.addEventListener('click', (e) => {
             e.preventDefault();
             loadOverallSummaryView();
+        });
+    }
+
+    // =========================================================================
+    // 11. YEARLY EVENTS & ANALYTICS VIEW
+    // =========================================================================
+    let yearlyEventsChartInstance = null;
+    let yearlyRevenueChartInstance = null;
+    let currentYearlyFilter = 'All'; // 'All' | 'YYYY'
+    let currentYearlyChartMetric = 'events'; // 'events' | 'revenue'
+    let currentYearlyChartType = 'bar'; // 'bar' | 'line'
+
+    async function loadYearlyEventsView() {
+        try {
+            const url = currentYearlyFilter && currentYearlyFilter !== 'All' 
+                ? `/api/stats/yearly?year=${encodeURIComponent(currentYearlyFilter)}` 
+                : '/api/stats/yearly';
+            
+            const res = await fetch(url);
+            const json = await res.json();
+            if (!json.success || !json.data) {
+                console.error("Failed to load yearly stats:", json.message);
+                return;
+            }
+
+            const data = json.data;
+            const availableYears = data.availableYears || [];
+            const yearlySummaries = data.yearlySummaries || [];
+            const grandTotals = data.grandTotals || {};
+            const selectedYearData = data.selectedYearData;
+
+            // 1. Populate/Sync Year Filter Select
+            const yearlySelect = document.getElementById('yearly-filter-select');
+            if (yearlySelect) {
+                const currentVal = currentYearlyFilter;
+                let selectHtml = `<option value="All" ${currentVal === 'All' ? 'selected' : ''}>All Years</option>`;
+                availableYears.forEach(yr => {
+                    selectHtml += `<option value="${escapeHtml(yr)}" ${currentVal === yr ? 'selected' : ''}>${escapeHtml(yr)}</option>`;
+                });
+                yearlySelect.innerHTML = selectHtml;
+                yearlySelect.value = currentVal;
+            }
+
+            // 2. Determine Display Metrics based on current filter
+            const isAllYears = (currentYearlyFilter === 'All');
+            let dispTotalEvents = 0;
+            let dispRevenue = 0;
+            let dispPendingDues = 0;
+            let dispCompleted = 0;
+            let dispConfirmed = 0;
+            let dispDraft = 0;
+            let dispCancelled = 0;
+            let dispArchived = 0;
+            let dispHall1Count = 0;
+            let dispHall1Revenue = 0;
+            let dispHall2Count = 0;
+            let dispHall2Revenue = 0;
+            let activeEventsList = [];
+            let monthlyDistData = [];
+
+            if (isAllYears) {
+                dispTotalEvents = grandTotals.totalEvents || 0;
+                dispRevenue = grandTotals.totalRevenue || 0;
+                dispPendingDues = grandTotals.totalPendingDues || 0;
+
+                yearlySummaries.forEach(y => {
+                    dispCompleted += y.completedEvents;
+                    dispConfirmed += y.activeEvents;
+                    dispDraft += y.draftEvents;
+                    dispCancelled += y.cancelledEvents;
+                    dispArchived += y.archivedEvents;
+                    if (Array.isArray(y.events)) {
+                        activeEventsList.push(...y.events);
+                    }
+                });
+
+                const h1 = grandTotals.hallBreakdown && grandTotals.hallBreakdown['Hall 1'];
+                const h2 = grandTotals.hallBreakdown && grandTotals.hallBreakdown['Hall 2'];
+                dispHall1Count = h1 ? h1.totalEvents : 0;
+                dispHall1Revenue = h1 ? h1.revenue : 0;
+                dispHall2Count = h2 ? h2.totalEvents : 0;
+                dispHall2Revenue = h2 ? h2.revenue : 0;
+
+                // Aggregate 12 months across all years
+                const monthAgg = [
+                    { monthIndex: 1, monthName: 'Jan', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 2, monthName: 'Feb', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 3, monthName: 'Mar', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 4, monthName: 'Apr', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 5, monthName: 'May', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 6, monthName: 'Jun', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 7, monthName: 'Jul', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 8, monthName: 'Aug', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 9, monthName: 'Sep', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 10, monthName: 'Oct', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 11, monthName: 'Nov', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 12, monthName: 'Dec', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 }
+                ];
+
+                yearlySummaries.forEach(y => {
+                    if (Array.isArray(y.monthlyDistribution)) {
+                        y.monthlyDistribution.forEach((m, idx) => {
+                            if (monthAgg[idx]) {
+                                monthAgg[idx].totalEvents += m.totalEvents;
+                                monthAgg[idx].hall1Events += m.hall1Events;
+                                monthAgg[idx].hall2Events += m.hall2Events;
+                                monthAgg[idx].revenue += m.revenue;
+                            }
+                        });
+                    }
+                });
+                monthlyDistData = monthAgg;
+
+            } else if (selectedYearData) {
+                const y = selectedYearData;
+                dispTotalEvents = y.totalEvents || 0;
+                dispRevenue = y.totalRevenue || 0;
+                dispPendingDues = y.pendingDues || 0;
+                dispCompleted = y.completedEvents || 0;
+                dispConfirmed = y.activeEvents || 0;
+                dispDraft = y.draftEvents || 0;
+                dispCancelled = y.cancelledEvents || 0;
+                dispArchived = y.archivedEvents || 0;
+
+                const h1 = y.hallBreakdown && y.hallBreakdown['Hall 1'];
+                const h2 = y.hallBreakdown && y.hallBreakdown['Hall 2'];
+                dispHall1Count = h1 ? h1.totalEvents : 0;
+                dispHall1Revenue = h1 ? h1.revenue : 0;
+                dispHall2Count = h2 ? h2.totalEvents : 0;
+                dispHall2Revenue = h2 ? h2.revenue : 0;
+
+                activeEventsList = y.events || [];
+                monthlyDistData = y.monthlyDistribution || [];
+            }
+
+            // 3. Update KPI Header Cards
+            const labelEvents = document.getElementById('yearly-label-total-events');
+            if (labelEvents) labelEvents.textContent = isAllYears ? 'Total Events (All-Time)' : `Total Events (${currentYearlyFilter})`;
+
+            const subEvents = document.getElementById('yearly-sub-total-events');
+            if (subEvents) subEvents.textContent = isAllYears ? 'All recorded years' : `Year ${currentYearlyFilter} events`;
+
+            const statEvents = document.getElementById('yearly-stat-total-events');
+            if (statEvents) statEvents.textContent = dispTotalEvents;
+
+            const labelRev = document.getElementById('yearly-label-total-revenue');
+            if (labelRev) labelRev.textContent = isAllYears ? 'Revenue Earned (All-Time)' : `Revenue Earned (${currentYearlyFilter})`;
+
+            const subRev = document.getElementById('yearly-sub-total-revenue');
+            if (subRev) subRev.textContent = isAllYears ? 'Net rent collected across all years' : `Net rent collected in ${currentYearlyFilter}`;
+
+            const statRev = document.getElementById('yearly-stat-total-revenue');
+            if (statRev) statRev.textContent = `₹${dispRevenue.toLocaleString()}`;
+
+            const statH1Count = document.getElementById('yearly-stat-hall1-count');
+            if (statH1Count) statH1Count.textContent = `${dispHall1Count} Events`;
+
+            const statH1Rev = document.getElementById('yearly-stat-hall1-revenue');
+            if (statH1Rev) statH1Rev.textContent = `Revenue: ₹${dispHall1Revenue.toLocaleString()}`;
+
+            const statH2Count = document.getElementById('yearly-stat-hall2-count');
+            if (statH2Count) statH2Count.textContent = `${dispHall2Count} Events`;
+
+            const statH2Rev = document.getElementById('yearly-stat-hall2-revenue');
+            if (statH2Rev) statH2Rev.textContent = `Revenue: ₹${dispHall2Revenue.toLocaleString()}`;
+
+            // Secondary Metrics
+            const statCompleted = document.getElementById('yearly-stat-completed');
+            if (statCompleted) statCompleted.textContent = dispCompleted;
+
+            const statConfirmed = document.getElementById('yearly-stat-confirmed');
+            if (statConfirmed) statConfirmed.textContent = dispConfirmed;
+
+            const statDraft = document.getElementById('yearly-stat-draft');
+            if (statDraft) statDraft.textContent = dispDraft;
+
+            const statCancelled = document.getElementById('yearly-stat-cancelled');
+            if (statCancelled) statCancelled.textContent = dispCancelled;
+
+            const statArchived = document.getElementById('yearly-stat-archived');
+            if (statArchived) statArchived.textContent = dispArchived;
+
+            const statDues = document.getElementById('yearly-stat-pending-dues');
+            if (statDues) statDues.textContent = `₹${dispPendingDues.toLocaleString()}`;
+
+            // 4. Render Chart.js Visualizations
+            if (typeof Chart !== 'undefined') {
+                // Sorted chronologically for clean chart progression (e.g. 2024 -> 2027)
+                const chronSummaries = [...yearlySummaries].sort((a, b) => a.year.localeCompare(b.year));
+
+                // --- Chart 1: Yearly Events Trend & Hall Breakdown ---
+                const chart1Canvas = document.getElementById('yearlyEventsChart');
+                const chart1Badge = document.getElementById('yearly-chart1-badge');
+                const chart1Title = document.getElementById('yearly-events-chart-title');
+                const chart1Subtitle = document.getElementById('yearly-events-chart-subtitle');
+
+                if (chart1Canvas) {
+                    if (yearlyEventsChartInstance) {
+                        yearlyEventsChartInstance.destroy();
+                        yearlyEventsChartInstance = null;
+                    }
+
+                    let chart1Labels = [];
+                    let chart1Datasets = [];
+
+                    if (isAllYears) {
+                        if (chart1Badge) chart1Badge.textContent = 'Multi-Year Comparative';
+                        if (chart1Title) chart1Title.innerHTML = '<i class="bi bi-bar-chart-fill text-primary me-2"></i>Yearly Events Trend by Hall';
+                        if (chart1Subtitle) chart1Subtitle.textContent = 'Annual event volume comparison across halls';
+
+                        chart1Labels = chronSummaries.map(s => s.year);
+                        const hall1Data = chronSummaries.map(s => (s.hallBreakdown['Hall 1'] ? s.hallBreakdown['Hall 1'].totalEvents : 0));
+                        const hall2Data = chronSummaries.map(s => (s.hallBreakdown['Hall 2'] ? s.hallBreakdown['Hall 2'].totalEvents : 0));
+                        const totalData = chronSummaries.map(s => s.totalEvents);
+
+                        chart1Datasets = [
+                            {
+                                label: 'Hall 1 (Main Hall)',
+                                data: hall1Data,
+                                backgroundColor: 'rgba(2, 132, 199, 0.85)',
+                                borderColor: '#0284c7',
+                                borderWidth: 1.5,
+                                borderRadius: 6,
+                                tension: 0.3
+                            },
+                            {
+                                label: 'Hall 2 (Executive Hall)',
+                                data: hall2Data,
+                                backgroundColor: 'rgba(124, 58, 237, 0.85)',
+                                borderColor: '#7c3aed',
+                                borderWidth: 1.5,
+                                borderRadius: 6,
+                                tension: 0.3
+                            },
+                            {
+                                label: 'Total Events',
+                                data: totalData,
+                                backgroundColor: 'rgba(16, 185, 129, 0.25)',
+                                borderColor: '#10b981',
+                                borderWidth: 2,
+                                borderRadius: 6,
+                                type: currentYearlyChartType === 'bar' ? 'bar' : 'line',
+                                tension: 0.3
+                            }
+                        ];
+                    } else {
+                        if (chart1Badge) chart1Badge.textContent = `Year ${currentYearlyFilter} Monthly`;
+                        if (chart1Title) chart1Title.innerHTML = `<i class="bi bi-bar-chart-fill text-primary me-2"></i>${currentYearlyFilter} Monthly Events by Hall`;
+                        if (chart1Subtitle) chart1Subtitle.textContent = `Monthly event distribution across Hall 1 & Hall 2 in ${currentYearlyFilter}`;
+
+                        chart1Labels = monthlyDistData.map(m => m.monthName);
+                        const hall1Data = monthlyDistData.map(m => m.hall1Events);
+                        const hall2Data = monthlyDistData.map(m => m.hall2Events);
+                        const totalData = monthlyDistData.map(m => m.totalEvents);
+
+                        chart1Datasets = [
+                            {
+                                label: 'Hall 1',
+                                data: hall1Data,
+                                backgroundColor: 'rgba(2, 132, 199, 0.85)',
+                                borderColor: '#0284c7',
+                                borderWidth: 1.5,
+                                borderRadius: 4,
+                                tension: 0.3
+                            },
+                            {
+                                label: 'Hall 2',
+                                data: hall2Data,
+                                backgroundColor: 'rgba(124, 58, 237, 0.85)',
+                                borderColor: '#7c3aed',
+                                borderWidth: 1.5,
+                                borderRadius: 4,
+                                tension: 0.3
+                            },
+                            {
+                                label: 'Total Events',
+                                data: totalData,
+                                backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                                borderColor: '#10b981',
+                                borderWidth: 2,
+                                borderRadius: 4,
+                                type: currentYearlyChartType === 'bar' ? 'bar' : 'line',
+                                tension: 0.3
+                            }
+                        ];
+                    }
+
+                    yearlyEventsChartInstance = new Chart(chart1Canvas, {
+                        type: currentYearlyChartType,
+                        data: {
+                            labels: chart1Labels,
+                            datasets: chart1Datasets
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'top',
+                                    labels: { boxWidth: 14, font: { family: 'Inter', size: 12, weight: '500' } }
+                                },
+                                tooltip: {
+                                    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                                    padding: 10,
+                                    cornerRadius: 8,
+                                    titleFont: { family: 'Inter', weight: 'bold' },
+                                    bodyFont: { family: 'Inter' }
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        stepSize: 1,
+                                        font: { family: 'Inter' }
+                                    },
+                                    grid: { color: 'rgba(226, 232, 240, 0.8)' }
+                                },
+                                x: {
+                                    grid: { display: false },
+                                    ticks: { font: { family: 'Inter', weight: '600' } }
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // --- Chart 2: Annual / Monthly Revenue Performance ---
+                const chart2Canvas = document.getElementById('yearlyRevenueChart');
+                const chart2Badge = document.getElementById('yearly-chart2-badge');
+                const chart2Title = document.getElementById('yearly-revenue-chart-title');
+                const chart2Subtitle = document.getElementById('yearly-revenue-chart-subtitle');
+
+                if (chart2Canvas) {
+                    if (yearlyRevenueChartInstance) {
+                        yearlyRevenueChartInstance.destroy();
+                        yearlyRevenueChartInstance = null;
+                    }
+
+                    let chart2Labels = [];
+                    let chart2Data = [];
+
+                    if (isAllYears) {
+                        if (chart2Badge) chart2Badge.textContent = 'Revenue Growth';
+                        if (chart2Title) chart2Title.innerHTML = '<i class="bi bi-graph-up-arrow text-success me-2"></i>Yearly Revenue Earnings (₹)';
+                        if (chart2Subtitle) chart2Subtitle.textContent = 'Annual net rent earnings over the years';
+
+                        chart2Labels = chronSummaries.map(s => s.year);
+                        chart2Data = chronSummaries.map(s => s.totalRevenue);
+                    } else {
+                        if (chart2Badge) chart2Badge.textContent = `Year ${currentYearlyFilter} Revenue`;
+                        if (chart2Title) chart2Title.innerHTML = `<i class="bi bi-graph-up-arrow text-success me-2"></i>${currentYearlyFilter} Monthly Revenue Trend (₹)`;
+                        if (chart2Subtitle) chart2Subtitle.textContent = `Monthly rent collection in ${currentYearlyFilter}`;
+
+                        chart2Labels = monthlyDistData.map(m => m.monthName);
+                        chart2Data = monthlyDistData.map(m => m.revenue);
+                    }
+
+                    yearlyRevenueChartInstance = new Chart(chart2Canvas, {
+                        type: currentYearlyChartType === 'line' ? 'line' : 'bar',
+                        data: {
+                            labels: chart2Labels,
+                            datasets: [{
+                                label: 'Revenue Earned (₹)',
+                                data: chart2Data,
+                                backgroundColor: currentYearlyChartType === 'line' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.85)',
+                                borderColor: '#10b981',
+                                borderWidth: 2,
+                                borderRadius: 6,
+                                fill: true,
+                                tension: 0.35,
+                                pointBackgroundColor: '#10b981',
+                                pointRadius: 4,
+                                pointHoverRadius: 6
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'top',
+                                    labels: { boxWidth: 14, font: { family: 'Inter', size: 12, weight: '500' } }
+                                },
+                                tooltip: {
+                                    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                                    padding: 10,
+                                    cornerRadius: 8,
+                                    callbacks: {
+                                        label: (context) => ` Revenue: ₹${Number(context.raw || 0).toLocaleString()}`
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        callback: (value) => '₹' + Number(value).toLocaleString(),
+                                        font: { family: 'Inter' }
+                                    },
+                                    grid: { color: 'rgba(226, 232, 240, 0.8)' }
+                                },
+                                x: {
+                                    grid: { display: false },
+                                    ticks: { font: { family: 'Inter', weight: '600' } }
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+
+            // 5. Render Hall Distribution Breakdown Cards
+            const hallContainer = document.getElementById('yearly-hall-breakdown-container');
+            const hallBadge = document.getElementById('yearly-hall-count-badge');
+            if (hallContainer) {
+                const activeHallObj = isAllYears 
+                    ? (grandTotals.hallBreakdown || {}) 
+                    : ((selectedYearData && selectedYearData.hallBreakdown) || {});
+
+                const hallKeys = Object.keys(activeHallObj);
+                if (hallBadge) hallBadge.textContent = `${hallKeys.length} Hall${hallKeys.length === 1 ? '' : 's'} Configured`;
+
+                if (hallKeys.length === 0) {
+                    hallContainer.innerHTML = `<div class="p-3 text-center text-muted">No hall events found for this period.</div>`;
+                } else {
+                    const totalPeriodEvents = dispTotalEvents || 1;
+                    hallContainer.innerHTML = hallKeys.map(hName => {
+                        const hInfo = activeHallObj[hName];
+                        const count = hInfo.totalEvents || 0;
+                        const pct = Math.round((count / totalPeriodEvents) * 100);
+                        const rev = hInfo.revenue || 0;
+                        const dues = hInfo.pendingDues || 0;
+                        const isHall1 = hName.includes('1');
+                        const barColor = isHall1 ? '#0284c7' : '#7c3aed';
+                        const pillClass = isHall1 ? 'hall-1' : 'hall-2';
+                        const badgeStyle = isHall1 ? 'bg-primary-subtle text-primary' : 'style="background:#f3e8ff; color:#6b21a8;"';
+
+                        return `
+                            <div class="p-3 rounded-3 border bg-light-subtle shadow-xs">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="hall-pill ${pillClass}">${escapeHtml(hName)}</span>
+                                        <span class="fw-semibold text-dark small">${isHall1 ? 'Main Grand Auditorium' : 'Executive Mini Hall'}</span>
+                                    </div>
+                                    <span class="badge rounded-pill fw-bold ${badgeStyle.startsWith('style') ? '' : badgeStyle}" ${badgeStyle.startsWith('style') ? badgeStyle : ''}>
+                                        ${count} Events (${pct}%)
+                                    </span>
+                                </div>
+                                <div class="progress mb-2" style="height: 8px; border-radius: 4px; background-color: #e2e8f0;">
+                                    <div class="progress-bar" role="progressbar" style="width: ${pct}%; background-color: ${barColor};" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                                <div class="d-flex justify-content-between text-muted small flex-wrap gap-2 pt-1 border-top border-light">
+                                    <span><i class="bi bi-cash-stack me-1 text-success"></i>Revenue: <strong class="text-dark">₹${rev.toLocaleString()}</strong></span>
+                                    <span><i class="bi bi-hourglass-split me-1 text-warning"></i>Dues: <strong class="text-dark">₹${dues.toLocaleString()}</strong></span>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            }
+
+            // 6. Render Monthly Distribution Table
+            const monthlyBody = document.getElementById('yearly-monthly-table-body');
+            const monthlyTitle = document.getElementById('yearly-monthly-table-title');
+            if (monthlyBody) {
+                if (monthlyTitle) {
+                    monthlyTitle.innerHTML = `<i class="bi bi-calendar-month text-primary me-2"></i>${isAllYears ? 'Consolidated Monthly Distribution (Jan - Dec)' : `Year ${currentYearlyFilter} Monthly Distribution (Jan - Dec)`}`;
+                }
+
+                monthlyBody.innerHTML = monthlyDistData.map(m => {
+                    const hasEvents = m.totalEvents > 0;
+                    return `
+                        <tr class="${hasEvents ? '' : 'text-muted opacity-75'}">
+                            <td class="fw-semibold font-monospace">${escapeHtml(m.monthName)}</td>
+                            <td class="text-center font-monospace fw-bold ${hasEvents ? 'text-primary' : 'text-muted'}">${m.totalEvents}</td>
+                            <td class="text-center"><span class="badge bg-primary-subtle text-primary">${m.hall1Events}</span></td>
+                            <td class="text-center"><span class="badge bg-purple-subtle text-purple" style="background:#f3e8ff; color:#6b21a8;">${m.hall2Events}</span></td>
+                            <td class="text-end pe-3 fw-bold ${m.revenue > 0 ? 'text-success' : 'text-muted'}">₹${m.revenue.toLocaleString()}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            // 7. Render Year-by-Year Comparison Table
+            const comparisonBody = document.getElementById('yearly-comparison-table-body');
+            const yearCountBadge = document.getElementById('yearly-table-year-count');
+            if (comparisonBody) {
+                if (yearCountBadge) yearCountBadge.textContent = `${yearlySummaries.length} Years Recorded`;
+
+                if (yearlySummaries.length === 0) {
+                    comparisonBody.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-muted">No yearly data recorded.</td></tr>`;
+                } else {
+                    comparisonBody.innerHTML = yearlySummaries.map(y => {
+                        const h1 = y.hallBreakdown['Hall 1'] || { totalEvents: 0 };
+                        const h2 = y.hallBreakdown['Hall 2'] || { totalEvents: 0 };
+                        const isCurrentSelected = (currentYearlyFilter === y.year);
+
+                        return `
+                            <tr class="${isCurrentSelected ? 'table-primary-subtle' : ''}">
+                                <td class="ps-3">
+                                    <span class="badge bg-dark text-white font-monospace fs-6 px-2.5 py-1">${escapeHtml(y.year)}</span>
+                                </td>
+                                <td class="text-center font-monospace fw-bold fs-6">${y.totalEvents}</td>
+                                <td class="text-center">
+                                    <span class="badge bg-primary-subtle text-primary font-monospace">${h1.totalEvents} (${y.totalEvents > 0 ? Math.round((h1.totalEvents / y.totalEvents) * 100) : 0}%)</span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-purple-subtle text-purple font-monospace" style="background:#f3e8ff; color:#6b21a8;">${h2.totalEvents} (${y.totalEvents > 0 ? Math.round((h2.totalEvents / y.totalEvents) * 100) : 0}%)</span>
+                                </td>
+                                <td class="text-center"><span class="badge bg-success-subtle text-success">${y.completedEvents}</span></td>
+                                <td class="text-center"><span class="badge bg-primary-subtle text-primary">${y.activeEvents}</span></td>
+                                <td class="text-center"><span class="badge bg-danger-subtle text-danger">${y.cancelledEvents}</span></td>
+                                <td class="text-end fw-bold text-success font-monospace">₹${y.totalRevenue.toLocaleString()}</td>
+                                <td class="text-end fw-bold text-warning font-monospace">₹${y.pendingDues.toLocaleString()}</td>
+                                <td class="text-end pe-3">
+                                    <div class="d-inline-flex gap-1">
+                                        <button class="btn btn-sm btn-primary py-0.5 px-2.5 btn-open-year-ledger" data-year="${escapeHtml(y.year)}" title="Open Performance Ledger for Year ${escapeHtml(y.year)}">
+                                            <i class="bi bi-journal-text me-1"></i>View Ledger
+                                        </button>
+                                        <button class="btn btn-sm ${isCurrentSelected ? 'btn-dark' : 'btn-outline-secondary'} py-0.5 px-2 btn-select-year-filter" data-year="${escapeHtml(y.year)}" title="${isCurrentSelected ? 'Currently filtered' : 'Filter view to year ' + escapeHtml(y.year)}">
+                                            <i class="bi bi-funnel"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
+
+                    comparisonBody.querySelectorAll('.btn-open-year-ledger').forEach(btn => {
+                        btn.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            const chosenYear = btn.getAttribute('data-year');
+                            openYearLedgerModal(chosenYear, yearlySummaries);
+                        });
+                    });
+
+                    comparisonBody.querySelectorAll('.btn-select-year-filter').forEach(btn => {
+                        btn.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            const chosenYear = btn.getAttribute('data-year');
+                            currentYearlyFilter = (currentYearlyFilter === chosenYear) ? 'All' : chosenYear;
+                            loadYearlyEventsView();
+                        });
+                    });
+                }
+            }
+
+            // 8. Render Filtered Year Events Detail Table
+            const eventsBody = document.getElementById('yearly-events-table-body');
+            const eventsCountBadge = document.getElementById('yearly-events-count-badge');
+            const eventsTitle = document.getElementById('yearly-events-list-title');
+            const eventsSubtitle = document.getElementById('yearly-events-list-subtitle');
+
+            if (eventsBody) {
+                if (eventsCountBadge) eventsCountBadge.textContent = `${activeEventsList.length} Events`;
+                if (eventsTitle) {
+                    eventsTitle.innerHTML = `<i class="bi bi-card-checklist text-primary me-2"></i>Events Recorded in ${isAllYears ? 'All Years' : `Year ${currentYearlyFilter}`}`;
+                }
+                if (eventsSubtitle) {
+                    eventsSubtitle.textContent = `Showing all bookings recorded for ${isAllYears ? 'all available years' : `year ${currentYearlyFilter}`}`;
+                }
+
+                if (activeEventsList.length === 0) {
+                    eventsBody.innerHTML = `<tr><td colspan="9" class="text-center py-4 text-muted"><i class="bi bi-calendar-x me-1"></i>No events recorded for this selection.</td></tr>`;
+                } else {
+                    eventsBody.innerHTML = activeEventsList.map(b => {
+                        const f = b.financial || {};
+                        const netRent = Number(f.netRent) || (b.contract && b.contract.hallRent) || 0;
+                        const paid = Number(f.netRentPaid) || 0;
+                        const due = Number(f.remainingRent) || 0;
+                        const hallPillClass = (b.hall === 'Hall 1') ? 'hall-1' : 'hall-2';
+
+                        return `
+                            <tr>
+                                <td class="ps-3">
+                                    <span class="fw-bold text-primary font-monospace">${escapeHtml(b.id)}</span>
+                                </td>
+                                <td>
+                                    <div class="fw-bold text-dark">${escapeHtml(b.customerName)}</div>
+                                    <small class="text-muted font-monospace"><i class="bi bi-telephone me-1"></i>${escapeHtml(b.mobileNumber || 'N/A')}</small>
+                                </td>
+                                <td>
+                                    <div class="fw-semibold text-dark">${escapeHtml(b.eventName)}</div>
+                                    <span class="hall-pill ${hallPillClass}">${escapeHtml(b.hall)}</span>
+                                </td>
+                                <td>
+                                    <div class="fw-medium">${escapeHtml(b.bookingDate)}</div>
+                                    <small class="text-muted"><i class="bi bi-clock me-1"></i>${escapeHtml(b.startTime)} - ${escapeHtml(b.endTime)}</small>
+                                </td>
+                                <td><span class="badge-status ${escapeHtml(b.status)}">${escapeHtml(b.status)}</span></td>
+                                <td class="text-end fw-semibold">₹${netRent.toLocaleString()}</td>
+                                <td class="text-end fw-bold text-success">₹${paid.toLocaleString()}</td>
+                                <td class="text-end fw-bold ${due > 0 ? 'text-warning' : 'text-muted'}">₹${due.toLocaleString()}</td>
+                                <td class="text-end pe-3">
+                                    <button class="btn btn-sm btn-outline-dark py-0.5 px-2 btn-yearly-view-booking" data-id="${escapeHtml(b.id)}" title="View Booking Details">
+                                        <i class="bi bi-eye me-1"></i>View
+                                    </button>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
+
+                    eventsBody.querySelectorAll('.btn-yearly-view-booking').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            const bId = btn.getAttribute('data-id');
+                            if (typeof openViewBookingModal === 'function') {
+                                openViewBookingModal(bId);
+                            }
+                        });
+                    });
+                }
+            }
+
+        } catch (err) {
+            console.error("Error loading yearly events view:", err);
+        }
+    }
+
+    /**
+     * Year-by-Year Performance Ledger Modal Opener
+     * Opens detailed breakdown of events, revenue, dues, and hall distribution for any chosen year.
+     */
+    async function openYearLedgerModal(year, cachedSummaries = null) {
+        try {
+            let yData = null;
+            if (Array.isArray(cachedSummaries)) {
+                yData = cachedSummaries.find(y => y.year === year);
+            }
+
+            if (!yData) {
+                const res = await fetch(`/api/stats/yearly?year=${encodeURIComponent(year)}`);
+                const json = await res.json();
+                if (json.success && json.data) {
+                    yData = json.data.selectedYearData || (json.data.yearlySummaries && json.data.yearlySummaries.find(y => y.year === year));
+                }
+            }
+
+            if (!yData) {
+                showToast(`No performance data found for year ${year}`);
+                return;
+            }
+
+            // 1. Header & KPI Cards
+            const modalYearBadge = document.getElementById('year-ledger-modal-year');
+            if (modalYearBadge) modalYearBadge.textContent = year;
+
+            const statEvents = document.getElementById('year-ledger-stat-total-events');
+            if (statEvents) statEvents.textContent = yData.totalEvents || 0;
+
+            const subEvents = document.getElementById('year-ledger-sub-total-events');
+            if (subEvents) subEvents.textContent = `Year ${year} total events`;
+
+            const statRev = document.getElementById('year-ledger-stat-revenue');
+            if (statRev) statRev.textContent = `₹${Number(yData.totalRevenue || 0).toLocaleString()}`;
+
+            const statDues = document.getElementById('year-ledger-stat-dues');
+            if (statDues) statDues.textContent = `₹${Number(yData.pendingDues || 0).toLocaleString()}`;
+
+            const statContract = document.getElementById('year-ledger-stat-contract');
+            if (statContract) statContract.textContent = `₹${Number(yData.totalContractAmount || 0).toLocaleString()}`;
+
+            // 2. Hall Distribution Breakdown
+            const hallContainer = document.getElementById('year-ledger-hall-breakdown');
+            if (hallContainer) {
+                const hallEntries = Object.keys(yData.hallBreakdown || {});
+                const totalYearEvents = yData.totalEvents || 1;
+
+                if (hallEntries.length === 0) {
+                    hallContainer.innerHTML = `<div class="text-center py-3 text-muted small">No hall distribution records.</div>`;
+                } else {
+                    hallContainer.innerHTML = hallEntries.map(hName => {
+                        const h = yData.hallBreakdown[hName];
+                        const count = h.totalEvents || 0;
+                        const pct = Math.round((count / totalYearEvents) * 100);
+                        const isH1 = (hName === 'Hall 1');
+                        const isH2 = (hName === 'Hall 2');
+                        const pillClass = isH1 ? 'hall-1' : (isH2 ? 'hall-2' : 'hall-1');
+                        const barColor = isH1 ? '#0284c7' : (isH2 ? '#7c3aed' : '#059669');
+
+                        return `
+                            <div class="p-2.5 px-3 rounded-3 border bg-white shadow-xs">
+                                <div class="d-flex justify-content-between align-items-center mb-1.5">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="hall-pill ${pillClass}">${escapeHtml(hName)}</span>
+                                        <span class="fw-semibold text-dark small">${isH1 ? 'Grand Main Hall' : (isH2 ? 'Executive Mini Hall' : 'Event Venue')}</span>
+                                    </div>
+                                    <span class="badge rounded-pill bg-light text-dark border font-monospace">${count} Events (${pct}%)</span>
+                                </div>
+                                <div class="progress mb-2" style="height: 6px; border-radius: 3px; background-color: #e2e8f0;">
+                                    <div class="progress-bar" role="progressbar" style="width: ${pct}%; background-color: ${barColor};" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                                <div class="d-flex justify-content-between text-muted small flex-wrap gap-2 pt-1 border-top border-light">
+                                    <span><i class="bi bi-cash-stack me-1 text-success"></i>Revenue: <strong class="text-dark">₹${(h.revenue || 0).toLocaleString()}</strong></span>
+                                    <span><i class="bi bi-check2-circle me-1 text-primary"></i>Active: <strong class="text-dark">${h.activeEvents || 0}</strong></span>
+                                    <span><i class="bi bi-clock-history me-1 text-secondary"></i>Completed: <strong class="text-dark">${h.completedEvents || 0}</strong></span>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            }
+
+            // 3. Status Lifecycle Breakdown
+            const statusContainer = document.getElementById('year-ledger-status-breakdown');
+            if (statusContainer) {
+                const totalYearEvents = yData.totalEvents || 1;
+                const statusList = [
+                    { label: 'Completed Events', count: yData.completedEvents || 0, badgeClass: 'Completed', barBg: 'bg-success' },
+                    { label: 'Confirmed / Active', count: yData.activeEvents || 0, badgeClass: 'Confirmed', barBg: 'bg-primary' },
+                    { label: 'Draft Enquiries', count: yData.draftEvents || 0, badgeClass: 'Draft', barBg: 'bg-warning' },
+                    { label: 'Cancelled Bookings', count: yData.cancelledEvents || 0, badgeClass: 'Cancelled', barBg: 'bg-danger' },
+                    { label: 'Archived Records', count: yData.archivedEvents || 0, badgeClass: 'Archived', barBg: 'bg-secondary' }
+                ];
+
+                statusContainer.innerHTML = statusList.map(st => {
+                    const pct = Math.round((st.count / totalYearEvents) * 100);
+                    return `
+                        <div class="p-2 px-3 rounded-3 border bg-white d-flex flex-column gap-1 shadow-xs">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge-status ${st.badgeClass} py-0.5 px-2">${st.label}</span>
+                                    <span class="text-muted small">${pct}%</span>
+                                </div>
+                                <span class="fw-bold text-dark font-monospace">${st.count}</span>
+                            </div>
+                            <div class="progress" style="height: 5px; border-radius: 2.5px; background-color: #e2e8f0;">
+                                <div class="progress-bar ${st.barBg}" role="progressbar" style="width: ${pct}%;" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            // 4. Monthly Table (Jan - Dec)
+            const monthlyBody = document.getElementById('year-ledger-monthly-table-body');
+            if (monthlyBody) {
+                const months = yData.monthlyDistribution || [];
+                monthlyBody.innerHTML = months.map(m => `
+                    <tr>
+                        <td class="fw-semibold text-dark ps-3">${m.monthName} ${year}</td>
+                        <td class="text-center font-monospace fw-bold">${m.totalEvents}</td>
+                        <td class="text-center"><span class="badge bg-primary-subtle text-primary">${m.hall1Events || 0}</span></td>
+                        <td class="text-center"><span class="badge bg-purple-subtle text-purple" style="background:#f3e8ff; color:#6b21a8;">${m.hall2Events || 0}</span></td>
+                        <td class="text-end pe-3 fw-bold ${(m.revenue || 0) > 0 ? 'text-success' : 'text-muted'}">₹${(m.revenue || 0).toLocaleString()}</td>
+                    </tr>
+                `).join('');
+            }
+
+            // 5. Year Events Table
+            const eventsBody = document.getElementById('year-ledger-events-table-body');
+            const eventsBadge = document.getElementById('year-ledger-events-count-badge');
+            const events = yData.events || [];
+
+            if (eventsBadge) eventsBadge.textContent = `${events.length} Events in ${year}`;
+
+            if (eventsBody) {
+                if (events.length === 0) {
+                    eventsBody.innerHTML = `<tr><td colspan="9" class="text-center py-4 text-muted"><i class="bi bi-inbox me-1"></i>No bookings recorded for ${year}.</td></tr>`;
+                } else {
+                    eventsBody.innerHTML = events.map(b => {
+                        const f = b.financial || {};
+                        const netRent = Number(f.netRent) || (b.contract && b.contract.hallRent) || 0;
+                        const paid = Number(f.netRentPaid) || 0;
+                        const due = Number(f.remainingRent) || 0;
+                        const hallPillClass = (b.hall === 'Hall 1') ? 'hall-1' : 'hall-2';
+
+                        return `
+                            <tr>
+                                <td class="ps-3 font-monospace fw-bold text-primary">${escapeHtml(b.id)}</td>
+                                <td>
+                                    <div class="fw-bold text-dark">${escapeHtml(b.customerName)}</div>
+                                    <small class="text-muted"><i class="bi bi-telephone me-1"></i>${escapeHtml(b.mobileNumber || 'N/A')}</small>
+                                </td>
+                                <td>
+                                    <div class="fw-semibold text-dark">${escapeHtml(b.eventName)}</div>
+                                    <span class="hall-pill ${hallPillClass}">${escapeHtml(b.hall)}</span>
+                                </td>
+                                <td>
+                                    <div class="fw-medium">${escapeHtml(b.bookingDate)}</div>
+                                    <small class="text-muted">${escapeHtml(b.startTime)} - ${escapeHtml(b.endTime)}</small>
+                                </td>
+                                <td><span class="badge-status ${escapeHtml(b.status)}">${escapeHtml(b.status)}</span></td>
+                                <td class="text-end fw-semibold">₹${netRent.toLocaleString()}</td>
+                                <td class="text-end fw-bold text-success">₹${paid.toLocaleString()}</td>
+                                <td class="text-end fw-bold ${due > 0 ? 'text-warning' : 'text-muted'}">₹${due.toLocaleString()}</td>
+                                <td class="text-end pe-3">
+                                    <button class="btn btn-sm btn-outline-dark py-0.5 px-2 btn-ledger-view-booking" data-id="${escapeHtml(b.id)}" title="View Booking Details">
+                                        <i class="bi bi-eye me-1"></i>View
+                                    </button>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
+
+                    eventsBody.querySelectorAll('.btn-ledger-view-booking').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            const bId = btn.getAttribute('data-id');
+                            if (typeof openViewBookingModal === 'function') {
+                                openViewBookingModal(bId);
+                            }
+                        });
+                    });
+                }
+            }
+
+            // 6. Action Button Bindings
+            const filterDashboardBtn = document.getElementById('btn-filter-dashboard-from-ledger');
+            if (filterDashboardBtn) {
+                filterDashboardBtn.onclick = () => {
+                    currentYearlyFilter = year;
+                    yearLedgerModal.hide();
+                    loadYearlyEventsView();
+                    showToast(`Filtered Yearly Events View to Year ${year}`);
+                };
+            }
+
+            const printLedgerBtn = document.getElementById('btn-print-year-ledger');
+            if (printLedgerBtn) {
+                printLedgerBtn.onclick = () => {
+                    window.print();
+                };
+            }
+
+            // Open modal
+            yearLedgerModal.show();
+
+        } catch (err) {
+            console.error("Error opening year ledger modal:", err);
+            showToast("Failed to load year ledger modal.");
+        }
+    }
+
+    // Attach Yearly Events Interactive Controls & Filter Event Listeners
+    const yearlySelectEl = document.getElementById('yearly-filter-select');
+    if (yearlySelectEl) {
+        yearlySelectEl.addEventListener('change', (e) => {
+            currentYearlyFilter = e.target.value;
+            loadYearlyEventsView();
+        });
+    }
+
+    const refreshYearlyBtn = document.getElementById('btn-refresh-yearly-events');
+    if (refreshYearlyBtn) {
+        refreshYearlyBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            loadYearlyEventsView();
+        });
+    }
+
+    const btnTypeBar = document.getElementById('btn-chart-type-bar');
+    const btnTypeLine = document.getElementById('btn-chart-type-line');
+    if (btnTypeBar && btnTypeLine) {
+        btnTypeBar.addEventListener('click', () => {
+            btnTypeBar.classList.add('active');
+            btnTypeLine.classList.remove('active');
+            currentYearlyChartType = 'bar';
+            loadYearlyEventsView();
+        });
+        btnTypeLine.addEventListener('click', () => {
+            btnTypeLine.classList.add('active');
+            btnTypeBar.classList.remove('active');
+            currentYearlyChartType = 'line';
+            loadYearlyEventsView();
         });
     }
 

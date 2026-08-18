@@ -602,3 +602,74 @@ body {
         padding: 0.75rem !important;
     }
 }
+
+/* =========================================================================
+   YEARLY EVENTS & ANALYTICS STYLING
+   ========================================================================= */
+.yearly-chart-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    background: #ffffff;
+}
+
+.yearly-chart-card:hover {
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.03) !important;
+}
+
+.chart-canvas-container {
+    position: relative;
+    width: 100%;
+    height: 320px;
+}
+
+#yearly-filter-select:focus {
+    box-shadow: none;
+}
+
+.year-highlight-badge {
+    font-weight: 700;
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    font-family: monospace;
+    font-size: 0.95rem;
+}
+
+#yearly-monthly-table-body td, #yearly-comparison-table-body td {
+    padding: 0.6rem 0.75rem;
+    vertical-align: middle;
+}
+
+#yearly-events-table-body td {
+    padding: 0.65rem 0.75rem;
+    vertical-align: middle;
+}
+
+/* Year-by-Year Performance Ledger Modal Styling */
+#yearLedgerModal .modal-body {
+    background-color: #f8fafc;
+}
+
+#year-ledger-monthly-table-body td, #year-ledger-events-table-body td {
+    padding: 0.6rem 0.75rem;
+    vertical-align: middle;
+}
+
+.table-primary-subtle {
+    background-color: rgba(2, 132, 199, 0.08) !important;
+}
+
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    #year-ledger-printable-content, #year-ledger-printable-content * {
+        visibility: visible;
+    }
+    #year-ledger-printable-content {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+    }
+}
+
+

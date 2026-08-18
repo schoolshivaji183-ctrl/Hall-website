@@ -123,6 +123,381 @@ let bookingsStore = [
         timeline: [
             { id: "TL-104", title: "Draft Booking Created", description: "Initial enquiry saved as Draft.", category: "Booking", timestamp: new Date().toISOString(), date: todayStr, time: "12:00:00", user: "Admin" }
         ]
+    },
+    // Multi-Year Historical & Future Sample Bookings (2023, 2024, 2025, 2026, 2027)
+    {
+        id: "BOOK-2023-01",
+        customerName: "Prof. Arvind Joshi",
+        mobileNumber: "9821098765",
+        eventName: "State Educational Symposium 2023",
+        hall: "Hall 1",
+        bookingDate: "2023-04-12",
+        startTime: "09:00",
+        endTime: "17:00",
+        status: "Completed",
+        notes: "State-level educational seminar and presentation sessions.",
+        contract: {
+            hallRent: 20000,
+            securityDeposit: 5000,
+            baseDiscount: 0,
+            discountsList: [],
+            extraChargesList: []
+        },
+        timeline: [
+            { id: "TL-2023-01", title: "Event Completed", description: "Educational symposium concluded successfully.", category: "Booking", timestamp: "2023-04-12T18:00:00.000Z", date: "2023-04-12", time: "18:00:00", user: "Admin" }
+        ]
+    },
+    {
+        id: "BOOK-2023-02",
+        customerName: "Dr. Meenakshi Rao",
+        mobileNumber: "9833221100",
+        eventName: "Alumni Reunion Meet 2023",
+        hall: "Hall 2",
+        bookingDate: "2023-08-19",
+        startTime: "11:00",
+        endTime: "16:00",
+        status: "Completed",
+        notes: "Golden jubilee batch alumni gathering.",
+        contract: {
+            hallRent: 15000,
+            securityDeposit: 3000,
+            baseDiscount: 0,
+            discountsList: [],
+            extraChargesList: []
+        },
+        timeline: [
+            { id: "TL-2023-02", title: "Event Completed", description: "Alumni reunion completed.", category: "Booking", timestamp: "2023-08-19T17:00:00.000Z", date: "2023-08-19", time: "17:00:00", user: "Admin" }
+        ]
+    },
+    {
+        id: "BOOK-2023-03",
+        customerName: "Sanjay Shinde",
+        mobileNumber: "9867543210",
+        eventName: "Inter-University Cultural Fest 2023",
+        hall: "Hall 1",
+        bookingDate: "2023-11-25",
+        startTime: "14:00",
+        endTime: "21:00",
+        status: "Completed",
+        notes: "Cultural drama and musical evening.",
+        contract: {
+            hallRent: 22000,
+            securityDeposit: 4000,
+            baseDiscount: 0,
+            discountsList: [],
+            extraChargesList: []
+        },
+        timeline: [
+            { id: "TL-2023-03", title: "Event Completed", description: "Cultural fest concluded.", category: "Booking", timestamp: "2023-11-25T22:00:00.000Z", date: "2023-11-25", time: "22:00:00", user: "Admin" }
+        ]
+    },
+    {
+        id: "BOOK-2024-01",
+        customerName: "Dr. Sandeep Kulkarni",
+        mobileNumber: "9822011223",
+        eventName: "National Tech Summit 2024",
+        hall: "Hall 1",
+        bookingDate: "2024-03-15",
+        startTime: "09:00",
+        endTime: "17:00",
+        status: "Completed",
+        notes: "Full day conference with audio-visual recording.",
+        contract: {
+            hallRent: 25000,
+            securityDeposit: 5000,
+            baseDiscount: 0,
+            discountsList: [],
+            extraChargesList: []
+        },
+        timeline: [
+            { id: "TL-2024-01", title: "Event Completed", description: "Event completed successfully.", category: "Booking", timestamp: "2024-03-15T18:00:00.000Z", date: "2024-03-15", time: "18:00:00", user: "Admin" }
+        ]
+    },
+    {
+        id: "BOOK-2024-02",
+        customerName: "Prof. Sunita Deshmukh",
+        mobileNumber: "9833445566",
+        eventName: "Annual Convocation Ceremony 2024",
+        hall: "Hall 1",
+        bookingDate: "2024-07-20",
+        startTime: "10:00",
+        endTime: "14:00",
+        status: "Completed",
+        notes: "Stage arrangement for 200 guests.",
+        contract: {
+            hallRent: 30000,
+            securityDeposit: 5000,
+            baseDiscount: 0,
+            discountsList: [],
+            extraChargesList: []
+        },
+        timeline: [
+            { id: "TL-2024-02", title: "Event Completed", description: "Convocation ceremony completed.", category: "Booking", timestamp: "2024-07-20T15:00:00.000Z", date: "2024-07-20", time: "15:00:00", user: "Admin" }
+        ]
+    },
+    {
+        id: "BOOK-2024-03",
+        customerName: "Dr. Nitin Gadre",
+        mobileNumber: "9844556677",
+        eventName: "Biotechnology Research Symposium",
+        hall: "Hall 2",
+        bookingDate: "2024-09-10",
+        startTime: "11:00",
+        endTime: "16:00",
+        status: "Completed",
+        notes: "Lab projector setup.",
+        contract: {
+            hallRent: 15000,
+            securityDeposit: 3000,
+            baseDiscount: 0,
+            discountsList: [],
+            extraChargesList: []
+        },
+        timeline: [
+            { id: "TL-2024-03", title: "Event Completed", description: "Symposium concluded.", category: "Booking", timestamp: "2024-09-10T17:00:00.000Z", date: "2024-09-10", time: "17:00:00", user: "Admin" }
+        ]
+    },
+    {
+        id: "BOOK-2024-04",
+        customerName: "Prof. Ananya Sen",
+        mobileNumber: "9855667788",
+        eventName: "Faculty Cultural & Music Night",
+        hall: "Hall 2",
+        bookingDate: "2024-11-05",
+        startTime: "18:00",
+        endTime: "21:30",
+        status: "Completed",
+        notes: "Stage lighting and sound checks.",
+        contract: {
+            hallRent: 12000,
+            securityDeposit: 2000,
+            baseDiscount: 0,
+            discountsList: [],
+            extraChargesList: []
+        },
+        timeline: [
+            { id: "TL-2024-04", title: "Event Completed", description: "Event completed.", category: "Booking", timestamp: "2024-11-05T22:00:00.000Z", date: "2024-11-05", time: "22:00:00", user: "Admin" }
+        ]
+    },
+    {
+        id: "BOOK-2025-01",
+        customerName: "Dr. Vikram Joshi",
+        mobileNumber: "9866778899",
+        eventName: "Global AI & Robotics Conclave 2025",
+        hall: "Hall 1",
+        bookingDate: "2025-02-14",
+        startTime: "09:00",
+        endTime: "18:00",
+        status: "Completed",
+        notes: "International keynote speakers.",
+        contract: {
+            hallRent: 35000,
+            securityDeposit: 5000,
+            baseDiscount: 0,
+            discountsList: [],
+            extraChargesList: []
+        },
+        timeline: [
+            { id: "TL-2025-01", title: "Event Completed", description: "Conclave concluded.", category: "Booking", timestamp: "2025-02-14T19:00:00.000Z", date: "2025-02-14", time: "19:00:00", user: "Admin" }
+        ]
+    },
+    {
+        id: "BOOK-2025-02",
+        customerName: "Dr. Meenakshi Rao",
+        mobileNumber: "9877889900",
+        eventName: "International Medical & Healthcare Seminar",
+        hall: "Hall 1",
+        bookingDate: "2025-05-18",
+        startTime: "10:00",
+        endTime: "15:00",
+        status: "Completed",
+        notes: "Medical equipment display area requested.",
+        contract: {
+            hallRent: 28000,
+            securityDeposit: 4000,
+            baseDiscount: 0,
+            discountsList: [],
+            extraChargesList: []
+        },
+        timeline: [
+            { id: "TL-2025-02", title: "Event Completed", description: "Seminar completed.", category: "Booking", timestamp: "2025-05-18T16:00:00.000Z", date: "2025-05-18", time: "16:00:00", user: "Admin" }
+        ]
+    },
+    {
+        id: "BOOK-2025-03",
+        customerName: "Prof. Chetan Bhagat",
+        mobileNumber: "9888990011",
+        eventName: "Inter-College Debate Championship",
+        hall: "Hall 2",
+        bookingDate: "2025-08-22",
+        startTime: "11:00",
+        endTime: "16:00",
+        status: "Completed",
+        notes: "Podium and mic arrangement for 16 teams.",
+        contract: {
+            hallRent: 18000,
+            securityDeposit: 3000,
+            baseDiscount: 0,
+            discountsList: [],
+            extraChargesList: []
+        },
+        timeline: [
+            { id: "TL-2025-03", title: "Event Completed", description: "Debate event finished.", category: "Booking", timestamp: "2025-08-22T17:00:00.000Z", date: "2025-08-22", time: "17:00:00", user: "Admin" }
+        ]
+    },
+    {
+        id: "BOOK-2025-04",
+        customerName: "Dr. Suresh Nair",
+        mobileNumber: "9899001122",
+        eventName: "IEEE Regional Engineering Summit",
+        hall: "Hall 1",
+        bookingDate: "2025-10-12",
+        startTime: "09:30",
+        endTime: "17:30",
+        status: "Completed",
+        notes: "Exhibition stalls and keynote area.",
+        contract: {
+            hallRent: 40000,
+            securityDeposit: 6000,
+            baseDiscount: 0,
+            discountsList: [],
+            extraChargesList: []
+        },
+        timeline: [
+            { id: "TL-2025-04", title: "Event Completed", description: "Summit concluded.", category: "Booking", timestamp: "2025-10-12T18:00:00.000Z", date: "2025-10-12", time: "18:00:00", user: "Admin" }
+        ]
+    },
+    {
+        id: "BOOK-2025-05",
+        customerName: "Prof. Smita Patil",
+        mobileNumber: "9811224455",
+        eventName: "Startup & Entrepreneurship Expo",
+        hall: "Hall 2",
+        bookingDate: "2025-12-04",
+        startTime: "10:00",
+        endTime: "16:00",
+        status: "Completed",
+        notes: "Display tables and banner stands.",
+        contract: {
+            hallRent: 22000,
+            securityDeposit: 4000,
+            baseDiscount: 0,
+            discountsList: [],
+            extraChargesList: []
+        },
+        timeline: [
+            { id: "TL-2025-05", title: "Event Completed", description: "Expo closed.", category: "Booking", timestamp: "2025-12-04T17:00:00.000Z", date: "2025-12-04", time: "17:00:00", user: "Admin" }
+        ]
+    },
+    {
+        id: "BOOK-2026-05",
+        customerName: "Dean Office",
+        mobileNumber: "9822334455",
+        eventName: "Quarterly Academic Senate Assembly",
+        hall: "Hall 1",
+        bookingDate: "2026-04-10",
+        startTime: "10:00",
+        endTime: "13:00",
+        status: "Completed",
+        notes: "Senate members meeting.",
+        contract: {
+            hallRent: 20000,
+            securityDeposit: 3000,
+            baseDiscount: 0,
+            discountsList: [],
+            extraChargesList: []
+        },
+        timeline: [
+            { id: "TL-2026-05", title: "Booking Created", description: "Senate meeting booked.", category: "Booking", timestamp: "2026-04-10T09:00:00.000Z", date: "2026-04-10", time: "09:00:00", user: "Admin" }
+        ]
+    },
+    {
+        id: "BOOK-2026-06",
+        customerName: "Prof. T. Agarwal",
+        mobileNumber: "9833556677",
+        eventName: "Spring Inter-College Hackathon 2026",
+        hall: "Hall 2",
+        bookingDate: "2026-05-25",
+        startTime: "09:00",
+        endTime: "21:00",
+        status: "Completed",
+        notes: "Extended overnight networking.",
+        contract: {
+            hallRent: 16000,
+            securityDeposit: 2000,
+            baseDiscount: 0,
+            discountsList: [],
+            extraChargesList: []
+        },
+        timeline: [
+            { id: "TL-2026-06", title: "Booking Created", description: "Hackathon scheduled.", category: "Booking", timestamp: "2026-05-25T08:30:00.000Z", date: "2026-05-25", time: "08:30:00", user: "Admin" }
+        ]
+    },
+    {
+        id: "BOOK-2026-07",
+        customerName: "Alumni Association",
+        mobileNumber: "9844667788",
+        eventName: "Silver Jubilee Alumni Reunion Gala",
+        hall: "Hall 1",
+        bookingDate: "2026-11-15",
+        startTime: "17:00",
+        endTime: "22:00",
+        status: "Confirmed",
+        notes: "Banquet dinner setup.",
+        contract: {
+            hallRent: 30000,
+            securityDeposit: 5000,
+            baseDiscount: 0,
+            discountsList: [],
+            extraChargesList: []
+        },
+        timeline: [
+            { id: "TL-2026-07", title: "Booking Created", description: "Alumni gala booked.", category: "Booking", timestamp: "2026-08-01T10:00:00.000Z", date: "2026-08-01", time: "10:00:00", user: "Admin" }
+        ]
+    },
+    {
+        id: "BOOK-2027-01",
+        customerName: "Global Education Council",
+        mobileNumber: "9855778899",
+        eventName: "World Education Forum 2027",
+        hall: "Hall 1",
+        bookingDate: "2027-02-20",
+        startTime: "09:00",
+        endTime: "18:00",
+        status: "Confirmed",
+        notes: "Early booking for international delegates.",
+        contract: {
+            hallRent: 45000,
+            securityDeposit: 10000,
+            baseDiscount: 0,
+            discountsList: [],
+            extraChargesList: []
+        },
+        timeline: [
+            { id: "TL-2027-01", title: "Booking Created", description: "World Forum 2027 reserved.", category: "Booking", timestamp: "2026-08-10T11:00:00.000Z", date: "2026-08-10", time: "11:00:00", user: "Admin" }
+        ]
+    },
+    {
+        id: "BOOK-2027-02",
+        customerName: "National Physics Society",
+        mobileNumber: "9866889900",
+        eventName: "National Physics Olympiad 2027",
+        hall: "Hall 2",
+        bookingDate: "2027-04-15",
+        startTime: "10:00",
+        endTime: "16:00",
+        status: "Confirmed",
+        notes: "Exam halls setup with spaced seating.",
+        contract: {
+            hallRent: 25000,
+            securityDeposit: 5000,
+            baseDiscount: 0,
+            discountsList: [],
+            extraChargesList: []
+        },
+        timeline: [
+            { id: "TL-2027-02", title: "Booking Created", description: "Olympiad booked.", category: "Booking", timestamp: "2026-08-12T14:00:00.000Z", date: "2026-08-12", time: "14:00:00", user: "Admin" }
+        ]
     }
 ];
 
@@ -791,6 +1166,194 @@ class BookingModel {
             hall1Status: isHall1OccupiedToday ? 'Booked Today' : 'Ready for Booking',
             hall2Status: isHall2OccupiedToday ? 'Booked Today' : 'Ready for Booking',
             recentActivities: bookingsStore.slice(-5).reverse()
+        };
+    }
+
+    /**
+     * Yearly Statistics & Multi-Year Aggregation Engine
+     */
+    static getYearlyStats(filterYear = null) {
+        const PaymentModel = require('./paymentModel');
+        const allBookings = bookingsStore;
+        
+        // Find distinct years from all bookings
+        const yearsSet = new Set();
+        allBookings.forEach(b => {
+            if (b.bookingDate) {
+                const yr = b.bookingDate.split('-')[0];
+                if (yr && yr.length === 4) yearsSet.add(yr);
+            }
+        });
+
+        // Ensure current year is always represented
+        const currentYearStr = String(new Date().getFullYear());
+        yearsSet.add(currentYearStr);
+
+        const availableYears = Array.from(yearsSet).sort((a, b) => b.localeCompare(a)); // e.g. 2027, 2026, 2025, 2024
+
+        // Initialize yearly buckets
+        const yearlyMap = {};
+        availableYears.forEach(year => {
+            yearlyMap[year] = {
+                year,
+                totalEvents: 0,
+                activeEvents: 0, // Confirmed + Booked
+                completedEvents: 0,
+                draftEvents: 0,
+                cancelledEvents: 0,
+                archivedEvents: 0,
+                totalRevenue: 0,
+                totalContractAmount: 0,
+                pendingDues: 0,
+                hallBreakdown: {},
+                monthlyDistribution: [
+                    { monthIndex: 1, monthName: 'Jan', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 2, monthName: 'Feb', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 3, monthName: 'Mar', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 4, monthName: 'Apr', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 5, monthName: 'May', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 6, monthName: 'Jun', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 7, monthName: 'Jul', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 8, monthName: 'Aug', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 9, monthName: 'Sep', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 10, monthName: 'Oct', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 11, monthName: 'Nov', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 12, monthName: 'Dec', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 }
+                ],
+                events: []
+            };
+        });
+
+        // Populate yearly data from bookings
+        allBookings.forEach(booking => {
+            const dateParts = (booking.bookingDate || '').split('-');
+            const year = dateParts[0];
+            const monthIdx = parseInt(dateParts[1], 10);
+
+            if (!year || !yearlyMap[year]) return;
+
+            const yData = yearlyMap[year];
+            const fin = PaymentModel.getBookingFinancialSummary(booking.id) || {};
+
+            yData.totalEvents += 1;
+            if (booking.status === 'Confirmed' || booking.status === 'Booked') yData.activeEvents += 1;
+            else if (booking.status === 'Completed') yData.completedEvents += 1;
+            else if (booking.status === 'Draft') yData.draftEvents += 1;
+            else if (booking.status === 'Cancelled') yData.cancelledEvents += 1;
+            else if (booking.status === 'Archived') yData.archivedEvents += 1;
+
+            const isEffectiveEvent = (booking.status !== 'Cancelled' && booking.status !== 'Archived');
+            const netRentPaid = Number(fin.netRentPaid) || 0;
+            const netRent = Number(fin.netRent) || 0;
+            const remainingRent = Number(fin.remainingRent) || 0;
+
+            if (isEffectiveEvent) {
+                yData.totalRevenue += netRentPaid;
+                yData.totalContractAmount += netRent;
+                yData.pendingDues += remainingRent;
+            }
+
+            // Hall Breakdown
+            const hallName = booking.hall || 'Other';
+            if (!yData.hallBreakdown[hallName]) {
+                yData.hallBreakdown[hallName] = {
+                    hallName,
+                    totalEvents: 0,
+                    activeEvents: 0,
+                    completedEvents: 0,
+                    cancelledEvents: 0,
+                    draftEvents: 0,
+                    revenue: 0,
+                    contractAmount: 0,
+                    pendingDues: 0
+                };
+            }
+            const hStats = yData.hallBreakdown[hallName];
+            hStats.totalEvents += 1;
+            if (booking.status === 'Confirmed' || booking.status === 'Booked') hStats.activeEvents += 1;
+            else if (booking.status === 'Completed') hStats.completedEvents += 1;
+            else if (booking.status === 'Cancelled') hStats.cancelledEvents += 1;
+            else if (booking.status === 'Draft') hStats.draftEvents += 1;
+
+            if (isEffectiveEvent) {
+                hStats.revenue += netRentPaid;
+                hStats.contractAmount += netRent;
+                hStats.pendingDues += remainingRent;
+            }
+
+            // Monthly breakdown (1-12)
+            if (monthIdx >= 1 && monthIdx <= 12) {
+                const mData = yData.monthlyDistribution[monthIdx - 1];
+                mData.totalEvents += 1;
+                if (hallName === 'Hall 1') mData.hall1Events += 1;
+                else if (hallName === 'Hall 2') mData.hall2Events += 1;
+
+                if (isEffectiveEvent) {
+                    mData.revenue += netRentPaid;
+                }
+            }
+
+            // Push enriched booking item
+            yData.events.push({
+                ...booking,
+                financial: fin
+            });
+        });
+
+        // Compute percentages for hall breakdowns
+        Object.keys(yearlyMap).forEach(year => {
+            const yData = yearlyMap[year];
+            const total = yData.totalEvents || 1;
+            Object.keys(yData.hallBreakdown).forEach(hName => {
+                const hStats = yData.hallBreakdown[hName];
+                hStats.percentage = Math.round((hStats.totalEvents / total) * 100);
+            });
+        });
+
+        const yearlySummaries = availableYears.map(yr => yearlyMap[yr]);
+
+        // Grand all-time totals
+        let grandTotalEvents = 0;
+        let grandTotalRevenue = 0;
+        let grandTotalPendingDues = 0;
+        const grandHallBreakdown = {};
+
+        yearlySummaries.forEach(y => {
+            grandTotalEvents += y.totalEvents;
+            grandTotalRevenue += y.totalRevenue;
+            grandTotalPendingDues += y.pendingDues;
+
+            Object.keys(y.hallBreakdown).forEach(hName => {
+                if (!grandHallBreakdown[hName]) {
+                    grandHallBreakdown[hName] = {
+                        hallName: hName,
+                        totalEvents: 0,
+                        revenue: 0,
+                        pendingDues: 0
+                    };
+                }
+                grandHallBreakdown[hName].totalEvents += y.hallBreakdown[hName].totalEvents;
+                grandHallBreakdown[hName].revenue += y.hallBreakdown[hName].revenue;
+                grandHallBreakdown[hName].pendingDues += y.hallBreakdown[hName].pendingDues;
+            });
+        });
+
+        const selectedYearData = (filterYear && filterYear !== 'All' && yearlyMap[filterYear]) 
+            ? yearlyMap[filterYear] 
+            : null;
+
+        return {
+            availableYears,
+            selectedYear: filterYear || 'All',
+            selectedYearData,
+            yearlySummaries,
+            grandTotals: {
+                totalEvents: grandTotalEvents,
+                totalRevenue: grandTotalRevenue,
+                totalPendingDues: grandTotalPendingDues,
+                hallBreakdown: grandHallBreakdown,
+                yearsCount: availableYears.length
+            }
         };
     }
 }
