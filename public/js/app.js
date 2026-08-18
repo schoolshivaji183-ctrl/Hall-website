@@ -3877,14 +3877,9 @@ function initApp() {
                                 <td class="text-end fw-bold text-success font-monospace">₹${y.totalRevenue.toLocaleString()}</td>
                                 <td class="text-end fw-bold text-warning font-monospace">₹${y.pendingDues.toLocaleString()}</td>
                                 <td class="text-end pe-3">
-                                    <div class="d-inline-flex gap-1">
-                                        <button class="btn btn-sm btn-primary py-0.5 px-2.5 btn-open-year-ledger" data-year="${escapeHtml(y.year)}" title="Open Performance Ledger for Year ${escapeHtml(y.year)}">
-                                            <i class="bi bi-journal-text me-1"></i>View Ledger
-                                        </button>
-                                        <button class="btn btn-sm ${isCurrentSelected ? 'btn-dark' : 'btn-outline-secondary'} py-0.5 px-2 btn-select-year-filter" data-year="${escapeHtml(y.year)}" title="${isCurrentSelected ? 'Currently filtered' : 'Filter view to year ' + escapeHtml(y.year)}">
-                                            <i class="bi bi-funnel"></i>
-                                        </button>
-                                    </div>
+                                    <button class="btn btn-sm btn-primary py-1 px-3 btn-open-year-ledger" data-year="${escapeHtml(y.year)}" title="Open Annual Performance Ledger for Year ${escapeHtml(y.year)}">
+                                        <i class="bi bi-journal-text me-1"></i>View Ledger
+                                    </button>
                                 </td>
                             </tr>
                         `;
@@ -3895,15 +3890,6 @@ function initApp() {
                             e.preventDefault();
                             const chosenYear = btn.getAttribute('data-year');
                             openYearLedgerModal(chosenYear, yearlySummaries);
-                        });
-                    });
-
-                    comparisonBody.querySelectorAll('.btn-select-year-filter').forEach(btn => {
-                        btn.addEventListener('click', (e) => {
-                            e.preventDefault();
-                            const chosenYear = btn.getAttribute('data-year');
-                            currentYearlyFilter = (currentYearlyFilter === chosenYear) ? 'All' : chosenYear;
-                            loadYearlyEventsView();
                         });
                     });
                 }
