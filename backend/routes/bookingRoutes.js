@@ -7,6 +7,8 @@ const PaymentController = require('../controllers/paymentController');
 router.get('/stats', BookingController.getStats);
 router.get('/stats/yearly', BookingController.getYearlyStats);
 router.get('/yearly-stats', BookingController.getYearlyStats);
+router.get('/stats/day-slots', BookingController.getDaySlots);
+router.get('/day-slots', BookingController.getDaySlots);
 router.get('/availability', BookingController.getAvailability);
 router.get('/bookings', BookingController.getAllBookings);
 router.get('/bookings/:id', BookingController.getBookingById);

@@ -41,6 +41,9 @@
             <a href="#" class="list-group-item" data-view="yearly-events" id="nav-yearly-events">
                 <i class="bi bi-calendar3-range"></i> Yearly Events
             </a>
+            <a href="#" class="list-group-item" data-view="day-slots" id="nav-day-slots">
+                <i class="bi bi-clock-history"></i> Day Slot Events
+            </a>
             <a href="#" class="list-group-item" data-view="availability" id="nav-availability">
                 <i class="bi bi-clock-history"></i> Hall Availability
             </a>
@@ -789,6 +792,261 @@
                     </div>
                 </div>
             </div>
+
+            <!-- 7. DAY SLOT EVENTS VIEW -->
+            <div id="view-day-slots" class="content-view d-none">
+                <!-- Header Banner -->
+                <div class="d-flex justify-content-between align-items-center mb-3 compact-summary-banner flex-wrap gap-2">
+                    <div>
+                        <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-clock-history text-primary me-2"></i>Day Slot Events Analysis</h6>
+                        <span class="text-muted small">Daily time-slot breakdown (Morning, Afternoon, Evening, Night), revenue & occupancy metrics</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <div class="d-flex align-items-center gap-1 bg-white p-1 rounded-3 border shadow-xs">
+                            <button class="btn btn-outline-secondary btn-sm py-1 px-2 border-0" id="btn-day-slots-prev" title="Previous Day">
+                                <i class="bi bi-chevron-left"></i>
+                            </button>
+                            <label for="day-slots-date-picker" class="small fw-semibold text-muted px-1"><i class="bi bi-calendar-event me-1"></i>Date:</label>
+                            <input type="date" class="form-control form-control-sm border-0 py-1 pe-2 fw-bold text-primary" id="day-slots-date-picker" style="width: auto; cursor: pointer;">
+                            <button class="btn btn-outline-secondary btn-sm py-1 px-2 border-0" id="btn-day-slots-next" title="Next Day">
+                                <i class="bi bi-chevron-right"></i>
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm py-1 px-2 border-0 rounded-2 fw-semibold" id="btn-day-slots-today" title="Go to Today">Today</button>
+                        </div>
+                        <button class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1" id="btn-refresh-day-slots" title="Refresh Day Slot Data">
+                            <i class="bi bi-arrow-clockwise"></i>
+                            <span class="d-none d-sm-inline">Refresh</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 4 Slot KPI Summary Cards Row -->
+                <div class="row g-3 mb-4">
+                    <!-- Morning Slot Card -->
+                    <div class="col-12 col-sm-6 col-xl-3">
+                        <div class="card stat-card p-3 h-100 bg-white shadow-sm border-0 rounded-4 slot-summary-card cursor-pointer" id="card-slot-morning" data-slot="morning">
+                            <div class="d-flex align-items-start justify-content-between mb-2">
+                                <div>
+                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle px-2.5 py-1 fw-bold rounded-pill mb-1">
+                                        <i class="bi bi-sunrise me-1"></i>Morning
+                                    </span>
+                                    <div class="text-muted small fw-medium">06:00 – 12:00</div>
+                                </div>
+                                <div class="p-2.5 bg-warning-subtle text-warning rounded-3">
+                                    <i class="bi bi-sunrise fs-4"></i>
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-baseline justify-content-between mt-1">
+                                <h3 class="fw-bold mb-0 text-dark" id="slot-morning-count">0</h3>
+                                <span class="fw-semibold text-success fs-6" id="slot-morning-revenue">₹0</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top small text-muted">
+                                <span id="slot-morning-active">0 Active</span>
+                                <span id="slot-morning-halls">H1: 0 | H2: 0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Afternoon Slot Card -->
+                    <div class="col-12 col-sm-6 col-xl-3">
+                        <div class="card stat-card p-3 h-100 bg-white shadow-sm border-0 rounded-4 slot-summary-card cursor-pointer" id="card-slot-afternoon" data-slot="afternoon">
+                            <div class="d-flex align-items-start justify-content-between mb-2">
+                                <div>
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1 fw-bold rounded-pill mb-1">
+                                        <i class="bi bi-sun me-1"></i>Afternoon
+                                    </span>
+                                    <div class="text-muted small fw-medium">12:00 – 16:00</div>
+                                </div>
+                                <div class="p-2.5 bg-primary-subtle text-primary rounded-3">
+                                    <i class="bi bi-sun fs-4"></i>
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-baseline justify-content-between mt-1">
+                                <h3 class="fw-bold mb-0 text-dark" id="slot-afternoon-count">0</h3>
+                                <span class="fw-semibold text-success fs-6" id="slot-afternoon-revenue">₹0</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top small text-muted">
+                                <span id="slot-afternoon-active">0 Active</span>
+                                <span id="slot-afternoon-halls">H1: 0 | H2: 0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Evening Slot Card -->
+                    <div class="col-12 col-sm-6 col-xl-3">
+                        <div class="card stat-card p-3 h-100 bg-white shadow-sm border-0 rounded-4 slot-summary-card cursor-pointer" id="card-slot-evening" data-slot="evening">
+                            <div class="d-flex align-items-start justify-content-between mb-2">
+                                <div>
+                                    <span class="badge bg-info-subtle text-info border border-info-subtle px-2.5 py-1 fw-bold rounded-pill mb-1">
+                                        <i class="bi bi-sunset me-1"></i>Evening
+                                    </span>
+                                    <div class="text-muted small fw-medium">16:00 – 20:00</div>
+                                </div>
+                                <div class="p-2.5 bg-info-subtle text-info rounded-3">
+                                    <i class="bi bi-sunset fs-4"></i>
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-baseline justify-content-between mt-1">
+                                <h3 class="fw-bold mb-0 text-dark" id="slot-evening-count">0</h3>
+                                <span class="fw-semibold text-success fs-6" id="slot-evening-revenue">₹0</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top small text-muted">
+                                <span id="slot-evening-active">0 Active</span>
+                                <span id="slot-evening-halls">H1: 0 | H2: 0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Night Slot Card -->
+                    <div class="col-12 col-sm-6 col-xl-3">
+                        <div class="card stat-card p-3 h-100 bg-white shadow-sm border-0 rounded-4 slot-summary-card cursor-pointer" id="card-slot-night" data-slot="night">
+                            <div class="d-flex align-items-start justify-content-between mb-2">
+                                <div>
+                                    <span class="badge bg-dark-subtle text-dark border border-dark-subtle px-2.5 py-1 fw-bold rounded-pill mb-1">
+                                        <i class="bi bi-moon-stars me-1"></i>Night
+                                    </span>
+                                    <div class="text-muted small fw-medium">20:00 – 00:00</div>
+                                </div>
+                                <div class="p-2.5 bg-dark-subtle text-dark rounded-3">
+                                    <i class="bi bi-moon-stars fs-4"></i>
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-baseline justify-content-between mt-1">
+                                <h3 class="fw-bold mb-0 text-dark" id="slot-night-count">0</h3>
+                                <span class="fw-semibold text-success fs-6" id="slot-night-revenue">₹0</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top small text-muted">
+                                <span id="slot-night-active">0 Active</span>
+                                <span id="slot-night-halls">H1: 0 | H2: 0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analytics & Distribution Section -->
+                <div class="row g-4 mb-4">
+                    <!-- Chart Column -->
+                    <div class="col-12 col-lg-7">
+                        <div class="card border-0 shadow-sm rounded-4 p-4 h-100">
+                            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                                <div>
+                                    <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-bar-chart-fill text-primary me-2"></i>Day Slot Distribution</h6>
+                                    <span class="text-muted small">Event count and revenue distribution across daily slots</span>
+                                </div>
+                                <div class="btn-group btn-group-sm" role="group" aria-label="Day Slot Chart Metric">
+                                    <button type="button" class="btn btn-outline-secondary active" id="btn-day-slot-chart-count" title="Events Count">
+                                        <i class="bi bi-calendar-event me-1"></i>Events
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" id="btn-day-slot-chart-revenue" title="Revenue (₹)">
+                                        <i class="bi bi-cash-stack me-1"></i>Revenue
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="chart-canvas-container" style="height: 280px; position: relative;">
+                                <canvas id="daySlotsChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Day Summary & Capacity Breakdown -->
+                    <div class="col-12 col-lg-5">
+                        <div class="card border-0 shadow-sm rounded-4 p-4 h-100">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-pie-chart text-primary me-2"></i>Daily Slot Summary</h6>
+                                <span class="badge bg-light text-muted border" id="day-slots-date-badge">Today</span>
+                            </div>
+                            <div class="p-3 bg-light rounded-3 mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="text-muted small fw-medium">Total Day Bookings:</span>
+                                    <span class="fw-bold text-dark fs-6" id="day-slots-total-events">0</span>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="text-muted small fw-medium">Total Rent Collection:</span>
+                                    <span class="fw-bold text-success fs-6" id="day-slots-total-revenue">₹0</span>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="text-muted small fw-medium">Total Contract Value:</span>
+                                    <span class="fw-bold text-primary fs-6" id="day-slots-total-contract">₹0</span>
+                                </div>
+                            </div>
+
+                            <h6 class="small fw-bold text-muted text-uppercase mb-2">Slot Occupancy & Halls</h6>
+                            <div class="d-flex flex-column gap-2" id="day-slots-breakdown-list">
+                                <!-- Dynamic Slot Progress Rows -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Slot Events Ledger Table Card -->
+                <div class="card border-0 shadow-sm rounded-4 p-4" id="day-slots-table-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-3">
+                        <div>
+                            <h6 class="fw-bold mb-0 text-dark" id="day-slots-table-title"><i class="bi bi-card-checklist text-primary me-2"></i>Day Slot Events Ledger</h6>
+                            <span class="text-muted small" id="day-slots-table-subtitle">Showing all events categorized by daily time slots</span>
+                        </div>
+
+                        <!-- Filter Controls -->
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <!-- Slot Filter Pills -->
+                            <div class="btn-group btn-group-sm" role="group" id="day-slot-filter-pills" aria-label="Slot Filter">
+                                <button type="button" class="btn btn-outline-primary active" data-slot="all">All Slots</button>
+                                <button type="button" class="btn btn-outline-warning" data-slot="morning">Morning</button>
+                                <button type="button" class="btn btn-outline-primary" data-slot="afternoon">Afternoon</button>
+                                <button type="button" class="btn btn-outline-info" data-slot="evening">Evening</button>
+                                <button type="button" class="btn btn-outline-dark" data-slot="night">Night</button>
+                            </div>
+
+                            <!-- Hall Filter -->
+                            <select class="form-select form-select-sm" id="day-slots-hall-filter" style="width: auto; cursor: pointer;">
+                                <option value="All" selected>All Halls</option>
+                                <option value="Hall 1">Hall 1</option>
+                                <option value="Hall 2">Hall 2</option>
+                            </select>
+
+                            <!-- Instant Search -->
+                            <div class="input-group input-group-sm" style="width: 200px;">
+                                <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                                <input type="text" class="form-control border-start-0" id="day-slots-search-input" placeholder="Search events...">
+                            </div>
+
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-1.5 fw-semibold" id="day-slots-count-badge">0 Events</span>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" id="day-slots-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-3">Slot & Time</th>
+                                    <th>Hall</th>
+                                    <th>Event & Customer</th>
+                                    <th>Status</th>
+                                    <th class="text-end">Net Rent</th>
+                                    <th class="text-end">Paid</th>
+                                    <th class="text-end">Due</th>
+                                    <th class="text-end pe-3">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="day-slots-table-body">
+                                <!-- Dynamic JS Rows -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Empty State Container -->
+                    <div id="day-slots-empty-state" class="text-center py-5 d-none">
+                        <div class="mb-3 text-muted">
+                            <i class="bi bi-calendar2-x fs-1 text-secondary opacity-50"></i>
+                        </div>
+                        <h6 class="fw-bold text-dark mb-1" id="day-slots-empty-title">No events found for this slot</h6>
+                        <p class="text-muted small mb-3" id="day-slots-empty-desc">There are no bookings registered for the selected date and slot.</p>
+                        <button class="btn btn-outline-primary btn-sm" id="btn-day-slots-book-now" data-bs-toggle="modal" data-bs-target="#bookingModal">
+                            <i class="bi bi-plus-circle me-1"></i>Book a Slot
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     <!-- /#page-content-wrapper -->
@@ -1434,6 +1692,8 @@
 
 <!-- Bootstrap 5 JS Bundle with Popper -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Client Data Adapter (LocalStorage & Day Slots Engine) -->
+<script src="js/dataAdapter.js"></script>
 <!-- Client App JavaScript -->
 <script src="js/app.js"></script>
 

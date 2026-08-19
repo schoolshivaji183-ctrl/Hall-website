@@ -585,6 +585,28 @@ class BookingController {
     }
 
     /**
+     * GET /api/stats/day-slots?date=YYYY-MM-DD
+     * GET /api/day-slots?date=YYYY-MM-DD
+     */
+    static getDaySlots(req, res) {
+        try {
+            const { date } = req.query;
+            const stats = BookingModel.getDaySlotStats(date);
+            return res.status(200).json({
+                success: true,
+                date: stats.date,
+                data: stats
+            });
+        } catch (error) {
+            return res.status(500).json({
+                success: false,
+                message: 'Error fetching day slot statistics.',
+                error: error.message
+            });
+        }
+    }
+
+    /**
      * GET /api/audit
      */
     static getAuditLogs(req, res) {

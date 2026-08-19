@@ -37,9 +37,12 @@ function initApp() {
         return `${year}-${month}-${day}`;
     };
 
-    // Set Initial Date in Filter input
+    // Set Initial Date in Filter inputs
     if (document.getElementById('avail-date-picker')) {
         document.getElementById('avail-date-picker').value = getTodayDateString();
+    }
+    if (document.getElementById('day-slots-date-picker')) {
+        document.getElementById('day-slots-date-picker').value = getTodayDateString();
     }
 
     // =========================================================================
@@ -84,6 +87,7 @@ function initApp() {
             'bookings': 'Booking Management List',
             'overall-summary': 'Overall Financial & Operational Summary',
             'yearly-events': 'Yearly Events Analytics & Trends',
+            'day-slots': 'Day Slot Events Analysis',
             'availability': 'Hall Schedule Availability',
             'upcoming': 'Upcoming Events Schedule'
         };
@@ -98,6 +102,8 @@ function initApp() {
             loadOverallSummaryView();
         } else if (viewName === 'yearly-events') {
             loadYearlyEventsView();
+        } else if (viewName === 'day-slots') {
+            loadDaySlotsView();
         } else if (viewName === 'availability') {
             loadHallAvailability();
         } else if (viewName === 'upcoming') {
@@ -114,6 +120,8 @@ function initApp() {
             loadOverallSummaryView();
         } else if (currentView === 'yearly-events') {
             loadYearlyEventsView();
+        } else if (currentView === 'day-slots') {
+            loadDaySlotsView();
         } else if (currentView === 'availability') {
             loadHallAvailability();
         } else if (currentView === 'upcoming') {
@@ -4214,15 +4222,633 @@ function initApp() {
         });
     }
 
-    // PDF Download for WhatsApp in Receipt Modal
-    const downloadReceiptPdfBtn = document.getElementById('btn-download-receipt-pdf');
-    if (downloadReceiptPdfBtn) {
-        downloadReceiptPdfBtn.addEventListener('click', () => {
-            downloadReceiptPDF(activeReceiptNumber);
+    // =========================================================================
+    // DAY SLOT EVENTS & TIME-OF-DAY ANALYTICS
+    // =========================================================================
+    let currentDaySlotsDate = getTodayDateString();
+    let currentDaySlotFilter = 'all'; // 'all' | 'morning' | 'afternoon' | 'evening' | 'night'
+    let currentDaySlotsChartMetric = 'count'; // 'count' | 'revenue'
+    let currentDaySlotsHallFilter = 'All'; // 'All' | 'Hall 1' | 'Hall 2'
+    let currentDaySlotsSearch = '';
+    let daySlotsChartInstance = null;
+    let cachedDaySlotsData = null;
+
+    /**
+     * Normalize date string to standard YYYY-MM-DD format
+     */
+    function normalizeDaySlotsDate(rawDate) {
+        if (!rawDate) return getTodayDateString();
+        if (typeof rawDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(rawDate.trim())) {
+            return rawDate.trim();
+        }
+        try {
+            const d = new Date(rawDate);
+            if (!isNaN(d.getTime())) {
+                const yr = d.getFullYear();
+                const mo = String(d.getMonth() + 1).padStart(2, '0');
+                const da = String(d.getDate()).padStart(2, '0');
+                return `${yr}-${mo}-${da}`;
+            }
+        } catch (_) {}
+        return getTodayDateString();
+    }
+
+    /**
+     * Load and render Day Slot Analytics View
+     */
+    async function loadDaySlotsView(forceRefresh = false) {
+        const refreshBtn = document.getElementById('btn-refresh-day-slots');
+        const refreshIcon = refreshBtn?.querySelector('i');
+        if (refreshIcon) refreshIcon.classList.add('spin-animation');
+
+        try {
+            const dateInput = document.getElementById('day-slots-date-picker');
+            let selectedDate = (dateInput && dateInput.value) ? dateInput.value.trim() : '';
+            selectedDate = normalizeDaySlotsDate(selectedDate || currentDaySlotsDate);
+            currentDaySlotsDate = selectedDate;
+
+            if (dateInput && dateInput.value !== selectedDate) {
+                dateInput.value = selectedDate;
+            }
+
+            let daySlotsData = null;
+
+            // 1. Check client-side Data Adapter (LocalStorage key: 'hall_mock_data_v1')
+            if (typeof window !== 'undefined' && window.dataAdapter && typeof window.dataAdapter.getDaySlots === 'function') {
+                try {
+                    const adapterResp = window.dataAdapter.getDaySlots(selectedDate);
+                    if (adapterResp && adapterResp.data) {
+                        daySlotsData = adapterResp.data;
+                    } else if (adapterResp && adapterResp.slots) {
+                        daySlotsData = adapterResp;
+                    }
+                } catch (adapterErr) {
+                    console.warn("dataAdapter.getDaySlots warning:", adapterErr);
+                }
+            }
+
+            // 2. Fetch live data from backend endpoint if reachable
+            try {
+                const res = await fetch(`/api/stats/day-slots?date=${encodeURIComponent(selectedDate)}`);
+                if (res.ok) {
+                    const json = await res.json();
+                    if (json && json.success && json.data) {
+                        daySlotsData = json.data;
+                    }
+                }
+            } catch (fetchErr) {
+                // API offline or mock mode - fallback seamlessly to adapter
+            }
+
+            // 3. Fallback computation if neither returned data
+            if (!daySlotsData) {
+                daySlotsData = computeDaySlotsFallback(selectedDate);
+            }
+
+            cachedDaySlotsData = daySlotsData;
+            renderDaySlotsUI(daySlotsData);
+
+            if (forceRefresh) {
+                showToast("Day Slot Events refreshed successfully!");
+            }
+        } catch (err) {
+            console.error("Error loading Day Slots View:", err);
+            showToast("Failed to load Day Slot Events data.");
+        } finally {
+            if (refreshIcon) {
+                setTimeout(() => refreshIcon.classList.remove('spin-animation'), 400);
+            }
+        }
+    }
+
+    /**
+     * Fallback computation engine for standalone / offline frontend simulation
+     */
+    function computeDaySlotsFallback(targetDate) {
+        if (typeof window !== 'undefined' && window.dataAdapter && typeof window.dataAdapter.getDaySlots === 'function') {
+            const resp = window.dataAdapter.getDaySlots(targetDate);
+            if (resp && resp.data) return resp.data;
+        }
+
+        const defaultSlots = {
+            morning: { key: 'morning', name: 'Morning', timeRange: '06:00–12:00', icon: 'bi-sunrise', color: '#f59e0b', count: 0, activeCount: 0, completedCount: 0, cancelledCount: 0, draftCount: 0, archivedCount: 0, revenue: 0, contractAmount: 0, pendingDues: 0, hallCounts: { 'Hall 1': 0, 'Hall 2': 0 }, events: [] },
+            afternoon: { key: 'afternoon', name: 'Afternoon', timeRange: '12:00–16:00', icon: 'bi-sun', color: '#3b82f6', count: 0, activeCount: 0, completedCount: 0, cancelledCount: 0, draftCount: 0, archivedCount: 0, revenue: 0, contractAmount: 0, pendingDues: 0, hallCounts: { 'Hall 1': 0, 'Hall 2': 0 }, events: [] },
+            evening: { key: 'evening', name: 'Evening', timeRange: '16:00–20:00', icon: 'bi-sunset', color: '#8b5cf6', count: 0, activeCount: 0, completedCount: 0, cancelledCount: 0, draftCount: 0, archivedCount: 0, revenue: 0, contractAmount: 0, pendingDues: 0, hallCounts: { 'Hall 1': 0, 'Hall 2': 0 }, events: [] },
+            night: { key: 'night', name: 'Night', timeRange: '20:00–00:00', icon: 'bi-moon-stars', color: '#475569', count: 0, activeCount: 0, completedCount: 0, cancelledCount: 0, draftCount: 0, archivedCount: 0, revenue: 0, contractAmount: 0, pendingDues: 0, hallCounts: { 'Hall 1': 0, 'Hall 2': 0 }, events: [] }
+        };
+
+        return {
+            date: targetDate,
+            totalEvents: 0,
+            activeEvents: 0,
+            totalRevenue: 0,
+            totalContractAmount: 0,
+            totalPendingDues: 0,
+            slots: defaultSlots,
+            slotList: [defaultSlots.morning, defaultSlots.afternoon, defaultSlots.evening, defaultSlots.night],
+            hallBreakdown: {
+                'Hall 1': { hallName: 'Hall 1', totalEvents: 0, morning: 0, afternoon: 0, evening: 0, night: 0, revenue: 0 },
+                'Hall 2': { hallName: 'Hall 2', totalEvents: 0, morning: 0, afternoon: 0, evening: 0, night: 0, revenue: 0 }
+            }
+        };
+    }
+
+    /**
+     * Defensive UI Renderer for Day Slot Events
+     */
+    function renderDaySlotsUI(data) {
+        if (!data) return;
+
+        try {
+            const slots = data.slots || {};
+            const morning = slots.morning || {};
+            const afternoon = slots.afternoon || {};
+            const evening = slots.evening || {};
+            const night = slots.night || {};
+
+            // 1. Update Date Picker & Header Badge
+            const dateInput = document.getElementById('day-slots-date-picker');
+            if (dateInput) dateInput.value = data.date || currentDaySlotsDate;
+
+            const dateBadge = document.getElementById('day-slots-date-badge');
+            if (dateBadge) {
+                const isToday = (data.date === getTodayDateString());
+                dateBadge.textContent = isToday ? 'Today' : (data.date || 'Selected Date');
+                dateBadge.className = isToday ? 'badge bg-primary-subtle text-primary border border-primary-subtle' : 'badge bg-light text-muted border';
+            }
+
+            // 2. Render 4 Slot KPI Summary Cards
+            const updateCard = (key, slotData) => {
+                const countEl = document.getElementById(`slot-${key}-count`);
+                const revEl = document.getElementById(`slot-${key}-revenue`);
+                const actEl = document.getElementById(`slot-${key}-active`);
+                const hallsEl = document.getElementById(`slot-${key}-halls`);
+                const cardEl = document.getElementById(`card-slot-${key}`);
+
+                if (countEl) countEl.textContent = `${slotData.count || 0} ${slotData.count === 1 ? 'Event' : 'Events'}`;
+                if (revEl) revEl.textContent = `₹${(slotData.revenue || 0).toLocaleString('en-IN')}`;
+                if (actEl) actEl.textContent = `${slotData.activeCount || 0} Confirmed`;
+                if (hallsEl) {
+                    const h1 = slotData.hallCounts?.['Hall 1'] || 0;
+                    const h2 = slotData.hallCounts?.['Hall 2'] || 0;
+                    hallsEl.textContent = `H1: ${h1} | H2: ${h2}`;
+                }
+
+                if (cardEl) {
+                    cardEl.classList.remove('active-slot-morning', 'active-slot-afternoon', 'active-slot-evening', 'active-slot-night');
+                    if (currentDaySlotFilter === key) {
+                        cardEl.classList.add(`active-slot-${key}`);
+                    }
+                }
+            };
+
+            updateCard('morning', morning);
+            updateCard('afternoon', afternoon);
+            updateCard('evening', evening);
+            updateCard('night', night);
+
+            // 3. Render Daily Slot Summary Totals & Capacity
+            const totalEventsEl = document.getElementById('day-slots-total-events');
+            const totalRevEl = document.getElementById('day-slots-total-revenue');
+            const totalContractEl = document.getElementById('day-slots-total-contract');
+
+            if (totalEventsEl) totalEventsEl.textContent = `${data.totalEvents || 0} Events`;
+            if (totalRevEl) totalRevEl.textContent = `₹${(data.totalRevenue || 0).toLocaleString('en-IN')}`;
+            if (totalContractEl) totalContractEl.textContent = `₹${(data.totalContractAmount || 0).toLocaleString('en-IN')}`;
+
+            // Render Capacity Progress Rows
+            const breakdownList = document.getElementById('day-slots-breakdown-list');
+            if (breakdownList) {
+                const slotDefs = [
+                    { key: 'morning', name: 'Morning', time: '06:00–12:00', data: morning, color: '#f59e0b', bgClass: 'bg-warning' },
+                    { key: 'afternoon', name: 'Afternoon', time: '12:00–16:00', data: afternoon, color: '#3b82f6', bgClass: 'bg-primary' },
+                    { key: 'evening', name: 'Evening', time: '16:00–20:00', data: evening, color: '#8b5cf6', bgClass: 'bg-info' },
+                    { key: 'night', name: 'Night', time: '20:00–00:00', data: night, color: '#475569', bgClass: 'bg-dark' }
+                ];
+
+                let listHtml = '';
+                slotDefs.forEach(s => {
+                    const count = s.data.count || 0;
+                    const rev = s.data.revenue || 0;
+                    const h1 = s.data.hallCounts?.['Hall 1'] || 0;
+                    const h2 = s.data.hallCounts?.['Hall 2'] || 0;
+                    const total = data.totalEvents || 1;
+                    const pct = Math.round((count / total) * 100) || 0;
+
+                    listHtml += `
+                        <div class="p-2 border rounded-3 bg-white">
+                            <div class="d-flex justify-content-between align-items-center mb-1 small">
+                                <span class="fw-semibold text-dark">${escapeHtml(s.name)} (${escapeHtml(s.time)})</span>
+                                <span class="fw-bold" style="color: ${s.color}">${count} events (₹${rev.toLocaleString('en-IN')})</span>
+                            </div>
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar ${s.bgClass}" role="progressbar" style="width: ${pct}%;" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mt-1 text-muted" style="font-size: 0.75rem;">
+                                <span>Hall 1: ${h1}</span>
+                                <span>Hall 2: ${h2}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+                breakdownList.innerHTML = listHtml;
+            }
+
+            // 4. Render Chart.js Chart
+            renderDaySlotsChart(data);
+
+            // 5. Render Events Table
+            renderDaySlotsTable(data);
+        } catch (uiErr) {
+            console.error("Error in renderDaySlotsUI:", uiErr);
+        }
+    }
+
+    /**
+     * Render Chart.js visualization for Day Slots
+     */
+    function renderDaySlotsChart(data) {
+        const canvas = document.getElementById('daySlotsChart');
+        if (!canvas) return;
+
+        try {
+            if (daySlotsChartInstance) {
+                daySlotsChartInstance.destroy();
+                daySlotsChartInstance = null;
+            }
+
+            const slots = data.slots || {};
+            const slotKeys = ['morning', 'afternoon', 'evening', 'night'];
+            const labels = ['Morning (06–12)', 'Afternoon (12–16)', 'Evening (16–20)', 'Night (20–00)'];
+
+            let datasets = [];
+
+            if (currentDaySlotsChartMetric === 'revenue') {
+                const revData = slotKeys.map(k => slots[k]?.revenue || 0);
+                datasets = [{
+                    label: 'Rent Revenue (₹)',
+                    data: revData,
+                    backgroundColor: [
+                        'rgba(245, 158, 11, 0.85)',
+                        'rgba(59, 130, 246, 0.85)',
+                        'rgba(139, 92, 246, 0.85)',
+                        'rgba(71, 85, 105, 0.85)'
+                    ],
+                    borderColor: ['#f59e0b', '#3b82f6', '#8b5cf6', '#475569'],
+                    borderWidth: 1.5,
+                    borderRadius: 6
+                }];
+            } else {
+                const h1Data = slotKeys.map(k => slots[k]?.hallCounts?.['Hall 1'] || 0);
+                const h2Data = slotKeys.map(k => slots[k]?.hallCounts?.['Hall 2'] || 0);
+
+                datasets = [
+                    {
+                        label: 'Hall 1 Bookings',
+                        data: h1Data,
+                        backgroundColor: 'rgba(37, 99, 235, 0.85)',
+                        borderColor: '#2563eb',
+                        borderWidth: 1.5,
+                        borderRadius: 6
+                    },
+                    {
+                        label: 'Hall 2 Bookings',
+                        data: h2Data,
+                        backgroundColor: 'rgba(124, 58, 237, 0.85)',
+                        borderColor: '#7c3aed',
+                        borderWidth: 1.5,
+                        borderRadius: 6
+                    }
+                ];
+            }
+
+            daySlotsChartInstance = new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: { boxWidth: 12, font: { family: 'Inter', size: 12, weight: '500' } }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                            padding: 10,
+                            cornerRadius: 8,
+                            titleFont: { family: 'Inter', weight: 'bold' },
+                            bodyFont: { family: 'Inter' }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: currentDaySlotsChartMetric === 'revenue' ? undefined : 1,
+                                font: { family: 'Inter' }
+                            },
+                            grid: { color: 'rgba(226, 232, 240, 0.8)' }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { font: { family: 'Inter', weight: '600' } }
+                        }
+                    }
+                }
+            });
+        } catch (chartErr) {
+            console.error("Error rendering Day Slots Chart:", chartErr);
+        }
+    }
+
+    /**
+     * Render the table of events for selected slot
+     */
+    function renderDaySlotsTable(data) {
+        const tableBody = document.getElementById('day-slots-table-body');
+        const emptyState = document.getElementById('day-slots-empty-state');
+        const tableEl = document.getElementById('day-slots-table');
+        const countBadge = document.getElementById('day-slots-count-badge');
+        const titleEl = document.getElementById('day-slots-table-title');
+        const subtitleEl = document.getElementById('day-slots-table-subtitle');
+
+        if (!tableBody || !data) return;
+
+        try {
+            // 1. Gather events for selected slot
+            const slots = data.slots || {};
+            let events = [];
+
+            if (currentDaySlotFilter === 'all') {
+                ['morning', 'afternoon', 'evening', 'night'].forEach(k => {
+                    if (slots[k]?.events) {
+                        events.push(...slots[k].events);
+                    }
+                });
+            } else if (slots[currentDaySlotFilter]?.events) {
+                events = [...slots[currentDaySlotFilter].events];
+            }
+
+            // 2. Filter by Hall
+            if (currentDaySlotsHallFilter && currentDaySlotsHallFilter !== 'All') {
+                events = events.filter(e => e.hall === currentDaySlotsHallFilter);
+            }
+
+            // 3. Filter by Search Query
+            if (currentDaySlotsSearch && currentDaySlotsSearch.trim()) {
+                const q = currentDaySlotsSearch.trim().toLowerCase();
+                events = events.filter(e => {
+                    const name = (e.eventName || '').toLowerCase();
+                    const cust = (e.customerName || '').toLowerCase();
+                    const mob = (e.mobileNumber || '').toLowerCase();
+                    const hall = (e.hall || '').toLowerCase();
+                    const id = (e.id || '').toLowerCase();
+                    const status = (e.status || '').toLowerCase();
+                    return name.includes(q) || cust.includes(q) || mob.includes(q) || hall.includes(q) || id.includes(q) || status.includes(q);
+                });
+            }
+
+            // Update table title
+            const slotTitleMap = {
+                'all': '<i class="bi bi-card-checklist text-primary me-2"></i>All Day Slot Events',
+                'morning': '<i class="bi bi-sunrise text-warning me-2"></i>Morning Slot Events (06:00 – 12:00)',
+                'afternoon': '<i class="bi bi-sun text-primary me-2"></i>Afternoon Slot Events (12:00 – 16:00)',
+                'evening': '<i class="bi bi-sunset text-info me-2"></i>Evening Slot Events (16:00 – 20:00)',
+                'night': '<i class="bi bi-moon-stars text-dark me-2"></i>Night Slot Events (20:00 – 00:00)'
+            };
+            if (titleEl) titleEl.innerHTML = slotTitleMap[currentDaySlotFilter] || slotTitleMap['all'];
+            if (subtitleEl) subtitleEl.textContent = `Showing ${events.length} events for ${data.date || currentDaySlotsDate}`;
+            if (countBadge) countBadge.textContent = `${events.length} ${events.length === 1 ? 'Event' : 'Events'}`;
+
+            // Sync filter pills active status
+            document.querySelectorAll('#day-slot-filter-pills button').forEach(btn => {
+                const s = btn.getAttribute('data-slot');
+                if (s === currentDaySlotFilter) {
+                    btn.className = `btn btn-${s === 'morning' ? 'warning' : s === 'evening' ? 'info' : s === 'night' ? 'dark' : 'primary'} active`;
+                } else {
+                    btn.className = `btn btn-outline-${s === 'morning' ? 'warning' : s === 'evening' ? 'info' : s === 'night' ? 'dark' : 'primary'}`;
+                }
+            });
+
+            // 4. Render Table Rows or Empty State
+            if (events.length === 0) {
+                tableBody.innerHTML = '';
+                if (tableEl && tableEl.parentElement) tableEl.parentElement.classList.add('d-none');
+                if (emptyState) {
+                    emptyState.classList.remove('d-none');
+                    const emptyTitle = document.getElementById('day-slots-empty-title');
+                    const emptyDesc = document.getElementById('day-slots-empty-desc');
+                    const slotName = currentDaySlotFilter === 'all' ? 'any slot' : `${currentDaySlotFilter.toUpperCase()} slot`;
+                    if (emptyTitle) emptyTitle.textContent = `No events scheduled in ${slotName}`;
+                    if (emptyDesc) emptyDesc.textContent = `There are no bookings recorded for ${data.date || currentDaySlotsDate} in ${slotName}.`;
+                }
+                return;
+            }
+
+            if (emptyState) emptyState.classList.add('d-none');
+            if (tableEl && tableEl.parentElement) tableEl.parentElement.classList.remove('d-none');
+
+            let rowsHtml = '';
+            events.forEach(e => {
+                const slotKey = e.slotKey || 'morning';
+                const badgeClass = `slot-badge-${slotKey}`;
+                const hallBadgeClass = (e.hall === 'Hall 2') ? 'badge-hall2' : 'badge-hall1';
+                const statusClass = `status-${e.status || 'Confirmed'}`;
+
+                const fin = e.financial || {};
+                const netRent = fin.netRent !== undefined ? fin.netRent : (e.contract?.hallRent || 0);
+                const netRentPaid = fin.netRentPaid !== undefined ? fin.netRentPaid : 0;
+                const remainingRent = fin.remainingRent !== undefined ? fin.remainingRent : 0;
+
+                rowsHtml += `
+                    <tr>
+                        <td class="ps-3">
+                            <span class="badge ${badgeClass} px-2.5 py-1 fw-bold rounded-pill mb-1">
+                                ${escapeHtml(e.slotName || slotKey)}
+                            </span>
+                            <div class="fw-semibold text-dark small font-monospace">
+                                <i class="bi bi-clock me-1 text-muted"></i>${escapeHtml(e.startTime)} – ${escapeHtml(e.endTime)}
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge ${hallBadgeClass} px-2.5 py-1 fw-semibold">${escapeHtml(e.hall || 'Hall 1')}</span>
+                        </td>
+                        <td>
+                            <div class="fw-bold text-dark">${escapeHtml(e.eventName)}</div>
+                            <div class="small text-muted">
+                                <i class="bi bi-person me-1"></i>${escapeHtml(e.customerName)} 
+                                <span class="text-secondary opacity-75">(${escapeHtml(e.mobileNumber)})</span>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge ${statusClass} px-2.5 py-1">${escapeHtml(e.status || 'Confirmed')}</span>
+                        </td>
+                        <td class="text-end fw-semibold text-dark">₹${Number(netRent).toLocaleString('en-IN')}</td>
+                        <td class="text-end fw-bold text-success">₹${Number(netRentPaid).toLocaleString('en-IN')}</td>
+                        <td class="text-end fw-semibold ${remainingRent > 0 ? 'text-warning' : 'text-muted'}">
+                            ₹${Number(remainingRent).toLocaleString('en-IN')}
+                        </td>
+                        <td class="text-end pe-3">
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary btn-view-booking-day-slot" data-id="${escapeHtml(e.id)}" title="View Booking Details">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tableBody.innerHTML = rowsHtml;
+
+            // Attach row button actions
+            tableBody.querySelectorAll('.btn-view-booking-day-slot').forEach(btn => {
+                btn.addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                    const bId = btn.getAttribute('data-id');
+                    if (typeof openViewBookingModal === 'function') {
+                        openViewBookingModal(bId);
+                    }
+                });
+            });
+        } catch (tableErr) {
+            console.error("Error rendering Day Slots Table:", tableErr);
+        }
+    }
+
+    // Attach Day Slots Interactive Controls & Filter Event Listeners
+    const daySlotDateInput = document.getElementById('day-slots-date-picker');
+    if (daySlotDateInput) {
+        daySlotDateInput.addEventListener('change', (e) => {
+            currentDaySlotsDate = normalizeDaySlotsDate(e.target.value);
+            loadDaySlotsView();
+        });
+        daySlotDateInput.addEventListener('input', (e) => {
+            if (e.target.value && /^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) {
+                currentDaySlotsDate = e.target.value;
+                loadDaySlotsView();
+            }
         });
     }
 
+    const btnPrevDay = document.getElementById('btn-day-slots-prev');
+    if (btnPrevDay) {
+        btnPrevDay.addEventListener('click', (e) => {
+            e.preventDefault();
+            const parts = currentDaySlotsDate.split('-').map(Number);
+            const d = new Date(parts[0], parts[1] - 1, parts[2]);
+            d.setDate(d.getDate() - 1);
+            currentDaySlotsDate = normalizeDaySlotsDate(d);
+            if (daySlotDateInput) daySlotDateInput.value = currentDaySlotsDate;
+            loadDaySlotsView();
+        });
+    }
 
+    const btnNextDay = document.getElementById('btn-day-slots-next');
+    if (btnNextDay) {
+        btnNextDay.addEventListener('click', (e) => {
+            e.preventDefault();
+            const parts = currentDaySlotsDate.split('-').map(Number);
+            const d = new Date(parts[0], parts[1] - 1, parts[2]);
+            d.setDate(d.getDate() + 1);
+            currentDaySlotsDate = normalizeDaySlotsDate(d);
+            if (daySlotDateInput) daySlotDateInput.value = currentDaySlotsDate;
+            loadDaySlotsView();
+        });
+    }
+
+    const btnToday = document.getElementById('btn-day-slots-today');
+    if (btnToday) {
+        btnToday.addEventListener('click', (e) => {
+            e.preventDefault();
+            currentDaySlotsDate = getTodayDateString();
+            if (daySlotDateInput) daySlotDateInput.value = currentDaySlotsDate;
+            loadDaySlotsView();
+        });
+    }
+
+    const refreshDaySlotsBtn = document.getElementById('btn-refresh-day-slots');
+    if (refreshDaySlotsBtn) {
+        refreshDaySlotsBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            loadDaySlotsView(true);
+        });
+    }
+
+    // Slot Summary Card click bindings
+    ['morning', 'afternoon', 'evening', 'night'].forEach(slotKey => {
+        const card = document.getElementById(`card-slot-${slotKey}`);
+        if (card) {
+            card.addEventListener('click', () => {
+                if (currentDaySlotFilter === slotKey) {
+                    currentDaySlotFilter = 'all';
+                } else {
+                    currentDaySlotFilter = slotKey;
+                }
+                if (cachedDaySlotsData) {
+                    renderDaySlotsUI(cachedDaySlotsData);
+                } else {
+                    loadDaySlotsView();
+                }
+            });
+        }
+    });
+
+    // Slot Filter Pills
+    document.querySelectorAll('#day-slot-filter-pills button').forEach(btn => {
+        btn.addEventListener('click', () => {
+            currentDaySlotFilter = btn.getAttribute('data-slot') || 'all';
+            if (cachedDaySlotsData) {
+                renderDaySlotsUI(cachedDaySlotsData);
+            } else {
+                loadDaySlotsView();
+            }
+        });
+    });
+
+    // Hall Filter
+    const hallFilter = document.getElementById('day-slots-hall-filter');
+    if (hallFilter) {
+        hallFilter.addEventListener('change', (e) => {
+            currentDaySlotsHallFilter = e.target.value || 'All';
+            if (cachedDaySlotsData) {
+                renderDaySlotsTable(cachedDaySlotsData);
+            }
+        });
+    }
+
+    // Instant Search
+    const searchInput = document.getElementById('day-slots-search-input');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            currentDaySlotsSearch = e.target.value || '';
+            if (cachedDaySlotsData) {
+                renderDaySlotsTable(cachedDaySlotsData);
+            }
+        });
+    }
+
+    // Chart Metric Toggles
+    const btnChartCount = document.getElementById('btn-day-slot-chart-count');
+    const btnChartRevenue = document.getElementById('btn-day-slot-chart-revenue');
+    if (btnChartCount && btnChartRevenue) {
+        btnChartCount.addEventListener('click', () => {
+            btnChartCount.classList.add('active');
+            btnChartRevenue.classList.remove('active');
+            currentDaySlotsChartMetric = 'count';
+            if (cachedDaySlotsData) renderDaySlotsChart(cachedDaySlotsData);
+        });
+        btnChartRevenue.addEventListener('click', () => {
+            btnChartRevenue.classList.add('active');
+            btnChartCount.classList.remove('active');
+            currentDaySlotsChartMetric = 'revenue';
+            if (cachedDaySlotsData) renderDaySlotsChart(cachedDaySlotsData);
+        });
+    }
 
     // HELPER FUNCTIONS
     function showToast(msg) {
