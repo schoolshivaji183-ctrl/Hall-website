@@ -10,19 +10,20 @@ class BookingController {
     /**
      * GET /api/bookings
      */
-    static getAllBookings(req, res) {
+    static async getAllBookings(req, res) {
         try {
             const { search, date, hall, status } = req.query;
-            let bookings = BookingModel.findAll({ search, date, hall, status });
+            let bookings = await BookingModel.findAll({ search, date, hall, status });
 
             // Attach financial summary to each booking
-            const enrichedBookings = bookings.map(b => {
-                const financial = PaymentModel.getBookingFinancialSummary(b.id);
-                return {
+            const enrichedBookings = [];
+            for (const b of bookings) {
+                const financial = await PaymentModel.getBookingFinancialSummary(b.id);
+                enrichedBookings.push({
                     ...b,
                     financial
-                };
-            });
+                });
+            }
 
             return res.status(200).json({
                 success: true,
@@ -41,9 +42,9 @@ class BookingController {
     /**
      * GET /api/bookings/:id
      */
-    static getBookingById(req, res) {
+    static async getBookingById(req, res) {
         try {
-            const booking = BookingModel.findById(req.params.id);
+            const booking = await BookingModel.findById(req.params.id);
             if (!booking) {
                 return res.status(404).json({
                     success: false,
@@ -51,8 +52,8 @@ class BookingController {
                 });
             }
 
-            const financial = PaymentModel.getBookingFinancialSummary(booking.id);
-            const auditLogs = AuditModel.findByBookingId(booking.id);
+            const financial = await PaymentModel.getBookingFinancialSummary(booking.id);
+            const auditLogs = await AuditModel.findByBookingId(booking.id);
 
             return res.status(200).json({
                 success: true,
@@ -74,7 +75,7 @@ class BookingController {
     /**
      * POST /api/bookings
      */
-    static createBooking(req, res) {
+    static async createBooking(req, res) {
         try {
             const { customerName, mobileNumber, eventName, hall, bookingDate, startTime, endTime, status, notes, hallRent, discount, extraCharges, securityDeposit, createdBy } = req.body;
 
@@ -87,7 +88,7 @@ class BookingController {
             }
 
             // CRITICAL BOOKING VALIDATION ENGINE CHECK
-            const allBookings = BookingModel.findAll();
+            const allBookings = await BookingModel.findAll();
             const validation = BookingValidator.validateSlot({
                 hall,
                 bookingDate,
@@ -107,7 +108,7 @@ class BookingController {
             }
 
             // Save booking
-            const newBooking = BookingModel.create({
+            const newBooking = await BookingModel.create({
                 customerName,
                 mobileNumber,
                 eventName,
@@ -126,7 +127,7 @@ class BookingController {
 
             const enriched = {
                 ...newBooking,
-                financial: PaymentModel.getBookingFinancialSummary(newBooking.id)
+                financial: await PaymentModel.getBookingFinancialSummary(newBooking.id)
             };
 
             return res.status(201).json({
@@ -146,10 +147,10 @@ class BookingController {
     /**
      * PUT /api/bookings/:id
      */
-    static updateBooking(req, res) {
+    static async updateBooking(req, res) {
         try {
             const { id } = req.params;
-            const existing = BookingModel.findById(id);
+            const existing = await BookingModel.findById(id);
             if (!existing) {
                 return res.status(404).json({
                     success: false,
@@ -165,27 +166,29 @@ class BookingController {
             const targetEnd = endTime || existing.endTime;
             const targetStatus = status || existing.status;
 
-            // VALIDATION ENGINE CHECK EXCLUDING CURRENT BOOKING ID
-            const allBookings = BookingModel.findAll();
-            const validation = BookingValidator.validateSlot({
-                hall: targetHall,
-                bookingDate: targetDate,
-                startTime: targetStart,
-                endTime: targetEnd,
-                status: targetStatus,
-                excludeId: id,
-                existingBookings: allBookings
-            });
-
-            if (!validation.isValid) {
-                return res.status(409).json({
-                    success: false,
-                    message: validation.message,
-                    conflictingBooking: validation.conflictingBooking
+            // Collision check only if time/hall/status changed
+            if (targetStatus !== 'Cancelled' && targetStatus !== 'Archived') {
+                const allBookings = await BookingModel.findAll();
+                const validation = BookingValidator.validateSlot({
+                    hall: targetHall,
+                    bookingDate: targetDate,
+                    startTime: targetStart,
+                    endTime: targetEnd,
+                    status: targetStatus,
+                    excludeId: id,
+                    existingBookings: allBookings
                 });
+
+                if (!validation.isValid) {
+                    return res.status(409).json({
+                        success: false,
+                        message: validation.message,
+                        conflictingBooking: validation.conflictingBooking
+                    });
+                }
             }
 
-            const updated = BookingModel.update(id, {
+            const updated = await BookingModel.update(id, {
                 customerName,
                 mobileNumber,
                 eventName,
@@ -204,12 +207,12 @@ class BookingController {
 
             const enriched = {
                 ...updated,
-                financial: PaymentModel.getBookingFinancialSummary(id)
+                financial: await PaymentModel.getBookingFinancialSummary(id)
             };
 
             return res.status(200).json({
                 success: true,
-                message: 'Booking details updated successfully!',
+                message: 'Booking updated successfully!',
                 data: enriched
             });
         } catch (error) {
@@ -224,30 +227,30 @@ class BookingController {
     /**
      * POST /api/bookings/:id/extra-charges
      */
-    static addExtraCharge(req, res) {
+    static async addExtraCharge(req, res) {
         try {
             const { id } = req.params;
             const { category, amount, remarks, addedBy } = req.body;
 
-            if (!amount || Number(amount) <= 0) {
+            if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Valid charge amount is required.'
+                    message: 'Please enter a valid extra charge amount greater than 0.'
                 });
             }
 
-            const chargeItem = BookingModel.addExtraCharge(id, {
-                category: category || 'Other Charge',
-                amount,
-                remarks,
+            const chargeItem = await BookingModel.addExtraCharge(id, {
+                category: category || 'Other Extra Charge',
+                amount: Number(amount),
+                remarks: remarks || '',
                 addedBy: addedBy || 'Admin'
             });
 
-            const summary = PaymentModel.getBookingFinancialSummary(id);
+            const summary = await PaymentModel.getBookingFinancialSummary(id);
 
             return res.status(201).json({
                 success: true,
-                message: `Extra charge of ₹${Number(amount).toLocaleString()} added successfully. Dues updated!`,
+                message: `Extra charge of ₹${Number(amount).toLocaleString()} added successfully!`,
                 data: {
                     charge: chargeItem,
                     summary
@@ -264,36 +267,36 @@ class BookingController {
     /**
      * POST /api/bookings/:id/discounts
      */
-    static addDiscount(req, res) {
+    static async addDiscount(req, res) {
         try {
             const { id } = req.params;
             const { amount, reason, approvedBy } = req.body;
 
-            if (!amount || Number(amount) <= 0) {
+            if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Valid discount amount is required.'
+                    message: 'Please enter a valid discount amount.'
                 });
             }
 
             if (!reason || !reason.trim()) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Discount approval reason is required.'
+                    message: 'Reason for discount is required.'
                 });
             }
 
-            const discountItem = BookingModel.addDiscount(id, {
-                amount,
-                reason,
+            const discountItem = await BookingModel.addDiscount(id, {
+                amount: Number(amount),
+                reason: reason.trim(),
                 approvedBy: approvedBy || 'Admin'
             });
 
-            const summary = PaymentModel.getBookingFinancialSummary(id);
+            const summary = await PaymentModel.getBookingFinancialSummary(id);
 
             return res.status(201).json({
                 success: true,
-                message: `Discount of ₹${Number(amount).toLocaleString()} approved and applied!`,
+                message: `Discount of ₹${Number(amount).toLocaleString()} applied successfully!`,
                 data: {
                     discount: discountItem,
                     summary
@@ -310,13 +313,13 @@ class BookingController {
     /**
      * DELETE /api/bookings/:id/extra-charges/:chargeId
      */
-    static revertExtraCharge(req, res) {
+    static async revertExtraCharge(req, res) {
         try {
             const { id, chargeId } = req.params;
             const user = (req.body && req.body.user) || 'Admin';
 
-            const chargeItem = BookingModel.revertExtraCharge(id, chargeId, user);
-            const summary = PaymentModel.getBookingFinancialSummary(id);
+            const chargeItem = await BookingModel.revertExtraCharge(id, chargeId, user);
+            const summary = await PaymentModel.getBookingFinancialSummary(id);
 
             return res.status(200).json({
                 success: true,
@@ -337,13 +340,13 @@ class BookingController {
     /**
      * DELETE /api/bookings/:id/discounts/:discountId
      */
-    static revertDiscount(req, res) {
+    static async revertDiscount(req, res) {
         try {
             const { id, discountId } = req.params;
             const user = (req.body && req.body.user) || 'Admin';
 
-            const discountItem = BookingModel.revertDiscount(id, discountId, user);
-            const summary = PaymentModel.getBookingFinancialSummary(id);
+            const discountItem = await BookingModel.revertDiscount(id, discountId, user);
+            const summary = await PaymentModel.getBookingFinancialSummary(id);
 
             return res.status(200).json({
                 success: true,
@@ -364,14 +367,14 @@ class BookingController {
     /**
      * PATCH /api/bookings/:id/unarchive
      */
-    static unarchiveBooking(req, res) {
+    static async unarchiveBooking(req, res) {
         try {
             const { id } = req.params;
             const user = (req.body && req.body.user) || 'Admin';
-            const updated = BookingModel.unarchive(id, user);
+            const updated = await BookingModel.unarchive(id, user);
             const enriched = {
                 ...updated,
-                financial: PaymentModel.getBookingFinancialSummary(id)
+                financial: await PaymentModel.getBookingFinancialSummary(id)
             };
 
             return res.status(200).json({
@@ -390,11 +393,11 @@ class BookingController {
     /**
      * PATCH /api/bookings/:id/archive
      */
-    static archiveBooking(req, res) {
+    static async archiveBooking(req, res) {
         try {
             const { id } = req.params;
             const user = (req.body && req.body.user) || 'Admin';
-            const updated = BookingModel.archive(id, user);
+            const updated = await BookingModel.archive(id, user);
             if (!updated) {
                 return res.status(404).json({
                     success: false,
@@ -419,11 +422,11 @@ class BookingController {
     /**
      * PATCH /api/bookings/:id/cancel
      */
-    static cancelBooking(req, res) {
+    static async cancelBooking(req, res) {
         try {
             const { id } = req.params;
             const user = (req.body && req.body.user) || 'Admin';
-            const updated = BookingModel.cancel(id, user);
+            const updated = await BookingModel.cancel(id, user);
             if (!updated) {
                 return res.status(404).json({
                     success: false,
@@ -448,14 +451,14 @@ class BookingController {
     /**
      * PATCH /api/bookings/:id/uncancel
      */
-    static uncancelBooking(req, res) {
+    static async uncancelBooking(req, res) {
         try {
             const { id } = req.params;
             const user = (req.body && req.body.user) || 'Admin';
-            const updated = BookingModel.uncancel(id, user);
+            const updated = await BookingModel.uncancel(id, user);
             const enriched = {
                 ...updated,
-                financial: PaymentModel.getBookingFinancialSummary(id)
+                financial: await PaymentModel.getBookingFinancialSummary(id)
             };
 
             return res.status(200).json({
@@ -474,19 +477,18 @@ class BookingController {
     /**
      * DELETE /api/bookings/:id (Financial Safeguard Check)
      */
-    static deleteBooking(req, res) {
+    static async deleteBooking(req, res) {
         try {
             const { id } = req.params;
-            
-            // Check if booking has any financial transaction records (including voided)
-            const transactions = PaymentModel.getTransactionsByBookingId(id, true);
-            const auditLogs = AuditModel.findByBookingId(id);
 
-            const hasFinancialRecords = (transactions && transactions.length > 0) || 
+            const transactions = await PaymentModel.getTransactionsByBookingId(id, true);
+            const auditLogs = await AuditModel.findByBookingId(id);
+
+            const hasFinancialRecords = (transactions && transactions.length > 0) ||
                                         (auditLogs && auditLogs.some(a => a.module === 'Payment Ledger' || a.module === 'Financial Contract'));
 
             try {
-                BookingModel.delete(id, hasFinancialRecords);
+                await BookingModel.delete(id, hasFinancialRecords);
                 return res.status(200).json({
                     success: true,
                     message: 'Booking permanently deleted.'
@@ -511,9 +513,9 @@ class BookingController {
     /**
      * GET /api/stats
      */
-    static getStats(req, res) {
+    static async getStats(req, res) {
         try {
-            const stats = BookingModel.getStats();
+            const stats = await BookingModel.getStats();
             return res.status(200).json({
                 success: true,
                 data: stats
@@ -530,10 +532,10 @@ class BookingController {
     /**
      * GET /api/stats/yearly?year=YYYY
      */
-    static getYearlyStats(req, res) {
+    static async getYearlyStats(req, res) {
         try {
             const { year } = req.query;
-            const yearlyStats = BookingModel.getYearlyStats(year);
+            const yearlyStats = await BookingModel.getYearlyStats(year);
             return res.status(200).json({
                 success: true,
                 data: yearlyStats
@@ -550,14 +552,12 @@ class BookingController {
     /**
      * GET /api/availability?date=YYYY-MM-DD
      */
-    static getAvailability(req, res) {
+    static async getAvailability(req, res) {
         try {
             const targetDate = req.query.date || new Date().toISOString().split('T')[0];
-            const allDateBookings = BookingModel.findAll({ date: targetDate });
+            const allDateBookings = await BookingModel.findAll({ date: targetDate });
 
-            // Active bookings occupying slots (excluding Cancelled and Archived)
             const activeBookings = allDateBookings.filter(b => b.status !== 'Cancelled' && b.status !== 'Archived');
-
             const hall1Bookings = activeBookings.filter(b => b.hall === 'Hall 1');
             const hall2Bookings = activeBookings.filter(b => b.hall === 'Hall 2');
 
@@ -586,12 +586,11 @@ class BookingController {
 
     /**
      * GET /api/stats/day-slots?date=YYYY-MM-DD
-     * GET /api/day-slots?date=YYYY-MM-DD
      */
-    static getDaySlots(req, res) {
+    static async getDaySlots(req, res) {
         try {
             const { date } = req.query;
-            const stats = BookingModel.getDaySlotStats(date);
+            const stats = await BookingModel.getDaySlotStats(date);
             return res.status(200).json({
                 success: true,
                 date: stats.date,
@@ -609,10 +608,10 @@ class BookingController {
     /**
      * GET /api/audit
      */
-    static getAuditLogs(req, res) {
+    static async getAuditLogs(req, res) {
         try {
             const { module, targetId, search } = req.query;
-            const logs = AuditModel.findAll({ module, targetId, search });
+            const logs = await AuditModel.findAll({ module, targetId, search });
             return res.status(200).json({
                 success: true,
                 count: logs.length,
@@ -629,4 +628,3 @@ class BookingController {
 }
 
 module.exports = BookingController;
-

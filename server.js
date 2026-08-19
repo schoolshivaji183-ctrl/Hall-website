@@ -1,10 +1,15 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const { connectDB } = require('./backend/config/db');
 const bookingRoutes = require('./backend/routes/bookingRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Initialize Database Connection
+connectDB();
 
 // Middleware
 app.use(cors());

@@ -1690,6 +1690,14 @@
     </div>
 </div>
 
+<!-- Automatic Clean Slate Cache Reset -->
+<script>
+    try {
+        localStorage.clear();
+        sessionStorage.clear();
+    } catch(e) {}
+</script>
+
 <!-- Bootstrap 5 JS Bundle with Popper -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <!-- Client Data Adapter (LocalStorage & Day Slots Engine) -->

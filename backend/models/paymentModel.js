@@ -1,12 +1,13 @@
 /**
- * In-Memory Payment Transaction Model & Financial Ledger (Commercial ERP Architecture)
+ * Payment Transaction Model & Financial Ledger (MongoDB Atlas & Mongoose)
  * 
  * DESIGN RATIONALE FOR FINANCIAL IMMUTABILITY & AUDIT COMPLIANCE:
  * Financial transactions and receipts are NEVER permanently deleted.
  * Transactions can be VOIDED with mandatory Reason & Approver, preserving historical audit logs.
  */
 
-const BookingModel = require('./bookingModel');
+const { Payment } = require('./schemas/PaymentSchema');
+const { isConnected } = require('../config/db');
 const AuditModel = require('./auditModel');
 
 // Helper to calculate date string formatted YYYY-MM-DD
@@ -21,782 +22,347 @@ function getFormattedDate(offsetDays = 0) {
 
 const todayStr = getFormattedDate(0);
 
-// Pre-seeded sample transaction ledger with HBR receipt numbers
-let transactionsStore = [
-    {
-        id: "TXN-2026-1001",
-        receiptNumber: "HBR-2026-0001",
-        bookingId: "BOOK-1001",
-        date: todayStr,
-        time: "09:30:00",
-        amount: 2000,
-        type: "Advance", // Advance, Rent Payment, Installment, Security Deposit, Deposit Return, Refund, Adjustment, Deposit Forfeiture
-        paymentMethod: "Cash",
-        collectedBy: "Admin",
-        referenceNumber: "CASH-ADV-001",
-        remarks: "Advance cash payment collected at counter.",
-        status: "Success",
-        isVoided: false,
-        voidReason: null,
-        voidedBy: null,
-        voidedAt: null
-    },
-    {
-        id: "TXN-2026-1002",
-        receiptNumber: "HBR-2026-0002",
-        bookingId: "BOOK-1001",
-        date: todayStr,
-        time: "10:15:00",
-        amount: 2000,
-        type: "Security Deposit",
-        paymentMethod: "UPI",
-        collectedBy: "Staff - Rahul",
-        referenceNumber: "UPI/9876543210/PAY",
-        remarks: "Security deposit paid via GPay.",
-        status: "Success",
-        isVoided: false,
-        voidReason: null,
-        voidedBy: null,
-        voidedAt: null
-    },
-    {
-        id: "TXN-2026-1003",
-        receiptNumber: "HBR-2026-0003",
-        bookingId: "BOOK-1002",
-        date: todayStr,
-        time: "11:00:00",
-        amount: 12000,
-        type: "Rent Payment",
-        paymentMethod: "Credit Card",
-        collectedBy: "Admin",
-        referenceNumber: "CARD-REF-4432",
-        remarks: "Full rental payment via HDFC card.",
-        status: "Success",
-        isVoided: false,
-        voidReason: null,
-        voidedBy: null,
-        voidedAt: null
-    },
-    {
-        id: "TXN-2026-1004",
-        receiptNumber: "HBR-2026-0004",
-        bookingId: "BOOK-1002",
-        date: todayStr,
-        time: "11:05:00",
-        amount: 2000,
-        type: "Security Deposit",
-        paymentMethod: "UPI",
-        collectedBy: "Admin",
-        referenceNumber: "UPI/7766554433/DEP",
-        remarks: "Security deposit received.",
-        status: "Success",
-        isVoided: false,
-        voidReason: null,
-        voidedBy: null,
-        voidedAt: null
-    },
-    // Multi-Year Transactions (2023, 2024, 2025, 2026, 2027)
-    {
-        id: "TXN-2023-1001",
-        receiptNumber: "HBR-2023-0001",
-        bookingId: "BOOK-2023-01",
-        date: "2023-04-12",
-        time: "10:00:00",
-        amount: 20000,
-        type: "Rent Payment",
-        paymentMethod: "Bank Transfer",
-        collectedBy: "Admin",
-        referenceNumber: "NEFT-2023-1122",
-        remarks: "Full rent payment for State Symposium.",
-        status: "Success",
-        isVoided: false,
-        voidReason: null,
-        voidedBy: null,
-        voidedAt: null
-    },
-    {
-        id: "TXN-2023-1002",
-        receiptNumber: "HBR-2023-0002",
-        bookingId: "BOOK-2023-02",
-        date: "2023-08-19",
-        time: "11:30:00",
-        amount: 15000,
-        type: "Rent Payment",
-        paymentMethod: "UPI",
-        collectedBy: "Admin",
-        referenceNumber: "UPI-2023-5566",
-        remarks: "Alumni meet rent payment via UPI.",
-        status: "Success",
-        isVoided: false,
-        voidReason: null,
-        voidedBy: null,
-        voidedAt: null
-    },
-    {
-        id: "TXN-2023-1003",
-        receiptNumber: "HBR-2023-0003",
-        bookingId: "BOOK-2023-03",
-        date: "2023-11-25",
-        time: "14:30:00",
-        amount: 22000,
-        type: "Rent Payment",
-        paymentMethod: "Bank Transfer",
-        collectedBy: "Admin",
-        referenceNumber: "RTGS-2023-8899",
-        remarks: "Inter-University Fest rental settlement.",
-        status: "Success",
-        isVoided: false,
-        voidReason: null,
-        voidedBy: null,
-        voidedAt: null
-    },
-    {
-        id: "TXN-2024-1001",
-        receiptNumber: "HBR-2024-0001",
-        bookingId: "BOOK-2024-01",
-        date: "2024-03-15",
-        time: "10:00:00",
-        amount: 25000,
-        type: "Rent Payment",
-        paymentMethod: "Bank Transfer",
-        collectedBy: "Admin",
-        referenceNumber: "NEFT-2024-9988",
-        remarks: "Full rent payment received via NEFT.",
-        status: "Success",
-        isVoided: false,
-        voidReason: null,
-        voidedBy: null,
-        voidedAt: null
-    },
-    {
-        id: "TXN-2024-1002",
-        receiptNumber: "HBR-2024-0002",
-        bookingId: "BOOK-2024-02",
-        date: "2024-07-20",
-        time: "10:30:00",
-        amount: 30000,
-        type: "Rent Payment",
-        paymentMethod: "Bank Transfer",
-        collectedBy: "Admin",
-        referenceNumber: "RTGS-2024-5544",
-        remarks: "Convocation rental settlement.",
-        status: "Success",
-        isVoided: false,
-        voidReason: null,
-        voidedBy: null,
-        voidedAt: null
-    },
-    {
-        id: "TXN-2024-1003",
-        receiptNumber: "HBR-2024-0003",
-        bookingId: "BOOK-2024-03",
-        date: "2024-09-10",
-        time: "11:15:00",
-        amount: 15000,
-        type: "Rent Payment",
-        paymentMethod: "UPI",
-        collectedBy: "Rahul - Staff",
-        referenceNumber: "UPI/9844556677/BIOT",
-        remarks: "Symposium rent payment.",
-        status: "Success",
-        isVoided: false,
-        voidReason: null,
-        voidedBy: null,
-        voidedAt: null
-    },
-    {
-        id: "TXN-2024-1004",
-        receiptNumber: "HBR-2024-0004",
-        bookingId: "BOOK-2024-04",
-        date: "2024-11-05",
-        time: "18:30:00",
-        amount: 12000,
-        type: "Rent Payment",
-        paymentMethod: "Cash",
-        collectedBy: "Admin",
-        referenceNumber: "CASH-CULT-04",
-        remarks: "Faculty cultural night payment.",
-        status: "Success",
-        isVoided: false,
-        voidReason: null,
-        voidedBy: null,
-        voidedAt: null
-    },
-    {
-        id: "TXN-2025-1001",
-        receiptNumber: "HBR-2025-0001",
-        bookingId: "BOOK-2025-01",
-        date: "2025-02-14",
-        time: "09:45:00",
-        amount: 35000,
-        type: "Rent Payment",
-        paymentMethod: "Bank Transfer",
-        collectedBy: "Admin",
-        referenceNumber: "NEFT-2025-1122",
-        remarks: "AI Conclave payment settlement.",
-        status: "Success",
-        isVoided: false,
-        voidReason: null,
-        voidedBy: null,
-        voidedAt: null
-    },
-    {
-        id: "TXN-2025-1002",
-        receiptNumber: "HBR-2025-0002",
-        bookingId: "BOOK-2025-02",
-        date: "2025-05-18",
-        time: "10:15:00",
-        amount: 28000,
-        type: "Rent Payment",
-        paymentMethod: "Credit Card",
-        collectedBy: "Admin",
-        referenceNumber: "CARD-MED-8877",
-        remarks: "Medical seminar full fee.",
-        status: "Success",
-        isVoided: false,
-        voidReason: null,
-        voidedBy: null,
-        voidedAt: null
-    },
-    {
-        id: "TXN-2025-1003",
-        receiptNumber: "HBR-2025-0003",
-        bookingId: "BOOK-2025-03",
-        date: "2025-08-22",
-        time: "11:30:00",
-        amount: 18000,
-        type: "Rent Payment",
-        paymentMethod: "UPI",
-        collectedBy: "Rahul - Staff",
-        referenceNumber: "UPI/9888990011/DEB",
-        remarks: "Debate championship rent.",
-        status: "Success",
-        isVoided: false,
-        voidReason: null,
-        voidedBy: null,
-        voidedAt: null
-    },
-    {
-        id: "TXN-2025-1004",
-        receiptNumber: "HBR-2025-0004",
-        bookingId: "BOOK-2025-04",
-        date: "2025-10-12",
-        time: "10:00:00",
-        amount: 40000,
-        type: "Rent Payment",
-        paymentMethod: "Bank Transfer",
-        collectedBy: "Admin",
-        referenceNumber: "RTGS-IEEE-2025",
-        remarks: "IEEE summit full rent paid.",
-        status: "Success",
-        isVoided: false,
-        voidReason: null,
-        voidedBy: null,
-        voidedAt: null
-    },
-    {
-        id: "TXN-2025-1005",
-        receiptNumber: "HBR-2025-0005",
-        bookingId: "BOOK-2025-05",
-        date: "2025-12-04",
-        time: "10:30:00",
-        amount: 22000,
-        type: "Rent Payment",
-        paymentMethod: "UPI",
-        collectedBy: "Admin",
-        referenceNumber: "UPI/STARTUP/EXPO",
-        remarks: "Startup expo rental fee.",
-        status: "Success",
-        isVoided: false,
-        voidReason: null,
-        voidedBy: null,
-        voidedAt: null
-    },
-    {
-        id: "TXN-2026-1005",
-        receiptNumber: "HBR-2026-0005",
-        bookingId: "BOOK-2026-05",
-        date: "2026-04-10",
-        time: "10:15:00",
-        amount: 20000,
-        type: "Rent Payment",
-        paymentMethod: "Bank Transfer",
-        collectedBy: "Admin",
-        referenceNumber: "SENATE-RENT-01",
-        remarks: "Senate meeting rent.",
-        status: "Success",
-        isVoided: false,
-        voidReason: null,
-        voidedBy: null,
-        voidedAt: null
-    },
-    {
-        id: "TXN-2026-1006",
-        receiptNumber: "HBR-2026-0006",
-        bookingId: "BOOK-2026-06",
-        date: "2026-05-25",
-        time: "09:30:00",
-        amount: 16000,
-        type: "Rent Payment",
-        paymentMethod: "UPI",
-        collectedBy: "Rahul - Staff",
-        referenceNumber: "UPI/HACKATHON/26",
-        remarks: "Hackathon payment.",
-        status: "Success",
-        isVoided: false,
-        voidReason: null,
-        voidedBy: null,
-        voidedAt: null
-    },
-    {
-        id: "TXN-2026-1007",
-        receiptNumber: "HBR-2026-0007",
-        bookingId: "BOOK-2026-07",
-        date: "2026-08-01",
-        time: "11:00:00",
-        amount: 15000,
-        type: "Advance",
-        paymentMethod: "Bank Transfer",
-        collectedBy: "Admin",
-        referenceNumber: "ALUMNI-ADV-2026",
-        remarks: "50% advance for reunion gala.",
-        status: "Success",
-        isVoided: false,
-        voidReason: null,
-        voidedBy: null,
-        voidedAt: null
-    },
-    {
-        id: "TXN-2027-1001",
-        receiptNumber: "HBR-2027-0001",
-        bookingId: "BOOK-2027-01",
-        date: "2026-08-10",
-        time: "11:30:00",
-        amount: 15000,
-        type: "Advance",
-        paymentMethod: "Bank Transfer",
-        collectedBy: "Admin",
-        referenceNumber: "WEF-2027-ADV",
-        remarks: "Initial advance for World Education Forum.",
-        status: "Success",
-        isVoided: false,
-        voidReason: null,
-        voidedBy: null,
-        voidedAt: null
-    },
-    {
-        id: "TXN-2027-1002",
-        receiptNumber: "HBR-2027-0002",
-        bookingId: "BOOK-2027-02",
-        date: "2026-08-12",
-        time: "14:30:00",
-        amount: 10000,
-        type: "Advance",
-        paymentMethod: "UPI",
-        collectedBy: "Admin",
-        referenceNumber: "NPO-2027-ADV",
-        remarks: "Advance for Physics Olympiad.",
-        status: "Success",
-        isVoided: false,
-        voidReason: null,
-        voidedBy: null,
-        voidedAt: null
-    }
-];
-
-let receiptCounter = 1005;
+// In-memory payment ledger synchronized with MongoDB Atlas
+let transactionsStore = [];
 
 class PaymentModel {
     /**
-     * Generate sequential Receipt Number format: HBR-YYYY-XXXX (Hall Booking Receipt)
+     * Synchronize in-memory ledger with MongoDB Atlas
      */
-    static generateReceiptNumber() {
-        const year = new Date().getFullYear();
-        const numStr = String(receiptCounter++).padStart(4, '0');
-        return `HBR-${year}-${numStr}`;
+    static async syncFromDB() {
+        if (isConnected()) {
+            try {
+                const docs = await Payment.find({}).lean();
+                transactionsStore = docs || [];
+                return transactionsStore;
+            } catch (err) {
+                console.warn('⚠️  [MongoDB] Failed to sync payments from Atlas:', err.message);
+            }
+        }
+        return transactionsStore;
     }
 
     /**
-     * Generate unique Transaction ID format: TXN-YYYY-XXXX
+     * Clear all payments (used for clean slate resets)
      */
-    static generateTransactionId() {
-        const year = new Date().getFullYear();
-        const numStr = String(Math.floor(1000 + Math.random() * 9000));
-        return `TXN-${year}-${numStr}`;
+    static clearStore() {
+        transactionsStore = [];
+    }
+    /**
+     * Generate standard ERP receipt number: HBR-YYYY-XXXX
+     */
+    static generateReceiptNumber(year = new Date().getFullYear()) {
+        const randomNum = Math.floor(1000 + Math.random() * 9000);
+        return `HBR-${year}-${randomNum}`;
     }
 
     /**
-     * Add a new transaction record into the ledger
+     * Create and record a new transaction in the ledger
      */
     static createTransaction(data) {
+        const BookingModel = require('./bookingModel');
+        const currentYear = new Date().getFullYear();
+        const receiptNumber = data.receiptNumber || this.generateReceiptNumber(currentYear);
+        const txnId = `TXN-${currentYear}-${Math.floor(1000 + Math.random() * 9000)}`;
         const now = new Date();
-        const dateStr = getFormattedDate(0);
-        const timeStr = now.toTimeString().split(' ')[0];
 
-        const receiptNumber = this.generateReceiptNumber();
-
-        const oldSummary = this.getBookingFinancialSummary(data.bookingId);
-
-        const newTxn = {
-            id: this.generateTransactionId(),
+        const newTransaction = {
+            id: txnId,
             receiptNumber,
             bookingId: data.bookingId,
-            date: data.date || dateStr,
-            time: data.time || timeStr,
+            date: data.date || now.toISOString().split('T')[0],
+            time: data.time || now.toTimeString().split(' ')[0],
             amount: Number(data.amount) || 0,
-            type: data.type || 'Rent Payment', // Advance, Rent Payment, Installment, Security Deposit, Deposit Return, Refund, Adjustment, Deposit Forfeiture
+            type: data.type || 'Rent Payment',
             paymentMethod: data.paymentMethod || 'Cash',
-            collectedBy: data.collectedBy ? data.collectedBy.trim() : 'Admin',
-            referenceNumber: data.referenceNumber ? data.referenceNumber.trim() : 'N/A',
-            remarks: data.remarks ? data.remarks.trim() : '',
-            status: 'Success',
+            collectedBy: data.collectedBy || 'Admin',
+            referenceNumber: data.referenceNumber || 'N/A',
+            remarks: data.remarks || '',
+            status: data.status || 'Success',
             isVoided: false,
             voidReason: null,
             voidedBy: null,
             voidedAt: null
         };
 
-        transactionsStore.push(newTxn);
+        transactionsStore.push(newTransaction);
 
-        const newSummary = this.getBookingFinancialSummary(data.bookingId);
-
-        // Add event to Booking Timeline
-        BookingModel.addTimelineEvent(data.bookingId, {
-            title: `Payment Recorded (${newTxn.type}): ₹${newTxn.amount.toLocaleString()}`,
-            description: `Receipt: ${receiptNumber}, Method: ${newTxn.paymentMethod}, Collected By: ${newTxn.collectedBy}`,
-            category: 'Financial',
-            user: newTxn.collectedBy
-        });
-
-        // Audit Log with Field-Level Diffs
-        const changes = [
-            { field: `Payment Receipt (${receiptNumber})`, oldVal: 'Ledger Entry Created', newVal: `Type: ${newTxn.type} | Amount: ₹${newTxn.amount.toLocaleString()} | Method: ${newTxn.paymentMethod} (Ref: ${newTxn.referenceNumber})` }
-        ];
-
-        if (oldSummary && newSummary) {
-            if (oldSummary.remainingRent !== newSummary.remainingRent) {
-                changes.push({ field: 'Remaining Rent Due', oldVal: `₹${oldSummary.remainingRent.toLocaleString()}`, newVal: `₹${newSummary.remainingRent.toLocaleString()}` });
-            }
-            if (oldSummary.effectiveDepositHeld !== newSummary.effectiveDepositHeld) {
-                changes.push({ field: 'Effective Deposit Held', oldVal: `₹${oldSummary.effectiveDepositHeld.toLocaleString()}`, newVal: `₹${newSummary.effectiveDepositHeld.toLocaleString()}` });
-            }
-            if (oldSummary.netRentPaid !== newSummary.netRentPaid) {
-                changes.push({ field: 'Net Rent Money Paid', oldVal: `₹${oldSummary.netRentPaid.toLocaleString()}`, newVal: `₹${newSummary.netRentPaid.toLocaleString()}` });
-            }
+        if (isConnected()) {
+            Payment.create(newTransaction).catch(err => {
+                console.warn('⚠️  [MongoDB] Failed to persist transaction:', err.message);
+            });
         }
+
+        try {
+            BookingModel.addTimelineEvent(data.bookingId, {
+                title: `Payment Recorded: ${newTransaction.type} (₹${newTransaction.amount.toLocaleString()})`,
+                description: `Receipt: ${newTransaction.receiptNumber} | Method: ${newTransaction.paymentMethod} | Collected by: ${newTransaction.collectedBy}`,
+                category: 'Financial',
+                user: newTransaction.collectedBy
+            });
+        } catch (e) {}
 
         AuditModel.log({
             module: 'Payment Ledger',
-            action: `Payment Recorded (${newTxn.type})`,
+            action: `Payment Recorded (${newTransaction.type})`,
             targetId: data.bookingId,
-            changes,
-            oldValue: oldSummary ? `Rent Due: ₹${oldSummary.remainingRent.toLocaleString()}` : 'N/A',
-            newValue: newSummary ? `Rent Due: ₹${newSummary.remainingRent.toLocaleString()} | Deposit Held: ₹${newSummary.effectiveDepositHeld.toLocaleString()}` : `Receipt: ${receiptNumber}`,
-            user: newTxn.collectedBy
+            changes: [
+                {
+                    field: `Receipt ${newTransaction.receiptNumber}`,
+                    oldVal: 'Pending',
+                    newVal: `Paid: ₹${newTransaction.amount.toLocaleString()} (${newTransaction.paymentMethod})`
+                }
+            ],
+            oldValue: 'Payment Pending',
+            newValue: `Receipt: ${newTransaction.receiptNumber}, Amount: ₹${newTransaction.amount}, Method: ${newTransaction.paymentMethod}`,
+            user: newTransaction.collectedBy
         });
 
-        return newTxn;
+        return newTransaction;
     }
 
     /**
-     * Void a transaction/receipt (Financial Immutability Rule)
+     * VOID a payment receipt with mandatory reason and approver
      */
     static voidTransaction(receiptNumber, voidReason, voidedBy = 'Admin') {
-        const txn = this.findByReceiptNumber(receiptNumber);
-        if (!txn) throw new Error('Receipt not found.');
-
-        if (txn.isVoided) throw new Error('Receipt is already voided.');
-
-        if (!voidReason || !voidReason.trim()) {
-            throw new Error('Reason is required to void a payment receipt.');
+        const BookingModel = require('./bookingModel');
+        const memTxn = transactionsStore.find(t => t.receiptNumber === receiptNumber);
+        if (!memTxn) {
+            throw new Error(`Receipt ${receiptNumber} not found.`);
         }
 
-        const oldSummary = this.getBookingFinancialSummary(txn.bookingId);
+        if (memTxn.isVoided) throw new Error('Transaction is already voided.');
+        memTxn.isVoided = true;
+        memTxn.voidReason = voidReason;
+        memTxn.voidedBy = voidedBy;
+        memTxn.voidedAt = new Date().toISOString();
 
-        txn.isVoided = true;
-        txn.voidReason = voidReason.trim();
-        txn.voidedBy = voidedBy;
-        txn.voidedAt = new Date().toISOString();
-
-        const newSummary = this.getBookingFinancialSummary(txn.bookingId);
-
-        // Add timeline event to booking
-        BookingModel.addTimelineEvent(txn.bookingId, {
-            title: `Receipt Voided: ${txn.receiptNumber}`,
-            description: `Amount ₹${txn.amount.toLocaleString()} (${txn.type}) voided. Reason: ${voidReason} (Approved By: ${voidedBy})`,
-            category: 'Financial',
-            user: voidedBy
-        });
-
-        // Audit log with Field-Level Diffs
-        const changes = [
-            { field: `Receipt Status (${receiptNumber})`, oldVal: `Active (${txn.type} ₹${txn.amount.toLocaleString()})`, newVal: `VOIDED (Reason: ${voidReason}, Approved By: ${voidedBy})` }
-        ];
-
-        if (oldSummary && newSummary) {
-            if (oldSummary.remainingRent !== newSummary.remainingRent) {
-                changes.push({ field: 'Remaining Rent Due', oldVal: `₹${oldSummary.remainingRent.toLocaleString()}`, newVal: `₹${newSummary.remainingRent.toLocaleString()}` });
-            }
-            if (oldSummary.effectiveDepositHeld !== newSummary.effectiveDepositHeld) {
-                changes.push({ field: 'Effective Deposit Held', oldVal: `₹${oldSummary.effectiveDepositHeld.toLocaleString()}`, newVal: `₹${newSummary.effectiveDepositHeld.toLocaleString()}` });
-            }
-            if (oldSummary.netRentPaid !== newSummary.netRentPaid) {
-                changes.push({ field: 'Net Rent Money Paid', oldVal: `₹${oldSummary.netRentPaid.toLocaleString()}`, newVal: `₹${newSummary.netRentPaid.toLocaleString()}` });
-            }
+        if (isConnected()) {
+            Payment.updateOne(
+                { receiptNumber },
+                {
+                    $set: {
+                        isVoided: true,
+                        voidReason,
+                        voidedBy,
+                        voidedAt: new Date()
+                    }
+                }
+            ).catch(err => {
+                console.warn('⚠️  [MongoDB] Failed to void transaction in DB:', err.message);
+            });
         }
+
+        try {
+            BookingModel.addTimelineEvent(memTxn.bookingId, {
+                title: `Receipt VOIDED: ${memTxn.receiptNumber}`,
+                description: `Voided by ${voidedBy}. Reason: ${voidReason}. Amount reversed: ₹${memTxn.amount.toLocaleString()}`,
+                category: 'Financial',
+                user: voidedBy
+            });
+        } catch (e) {}
 
         AuditModel.log({
             module: 'Payment Ledger',
             action: 'Receipt Voided',
-            targetId: txn.bookingId,
-            changes,
-            oldValue: oldSummary ? `Rent Due: ₹${oldSummary.remainingRent.toLocaleString()}` : `Receipt: ${txn.receiptNumber}`,
-            newValue: newSummary ? `Rent Due: ₹${newSummary.remainingRent.toLocaleString()} | Deposit Held: ₹${newSummary.effectiveDepositHeld.toLocaleString()}` : `VOIDED - Reason: ${voidReason}`,
+            targetId: memTxn.bookingId,
+            changes: [
+                {
+                    field: `Receipt ${memTxn.receiptNumber}`,
+                    oldVal: `Active (₹${memTxn.amount.toLocaleString()})`,
+                    newVal: `VOIDED: ${voidReason} (by ${voidedBy})`
+                }
+            ],
+            oldValue: `Receipt ${memTxn.receiptNumber} Active: ₹${memTxn.amount}`,
+            newValue: `Receipt ${memTxn.receiptNumber} VOIDED. Reason: ${voidReason}`,
             user: voidedBy
         });
 
-        return txn;
+        return memTxn;
     }
 
     /**
-     * Retrieve transactions for a booking (all or non-voided)
+     * Retrieve all transactions with optional filtering
      */
-    static getTransactionsByBookingId(bookingId, includeVoided = false) {
-        return transactionsStore.filter(t => t.bookingId === bookingId && (includeVoided || !t.isVoided));
+    static findAll(filters = {}) {
+        let results = [...transactionsStore];
+
+        if (filters.bookingId) {
+            results = results.filter(t => t.bookingId === filters.bookingId);
+        }
+        if (filters.date) {
+            results = results.filter(t => t.date === filters.date);
+        }
+        if (filters.paymentMethod && filters.paymentMethod !== 'All') {
+            results = results.filter(t => t.paymentMethod === filters.paymentMethod);
+        }
+        if (filters.type && filters.type !== 'All') {
+            results = results.filter(t => t.type === filters.type);
+        }
+        if (filters.status && filters.status !== 'All') {
+            results = results.filter(t => t.status === filters.status);
+        }
+        if (filters.isVoided !== undefined) {
+            const isV = filters.isVoided === 'true' || filters.isVoided === true;
+            results = results.filter(t => t.isVoided === isV);
+        }
+
+        results.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        return results;
     }
 
     /**
-     * Find transaction by Receipt Number
+     * Find single transaction by receipt number
      */
     static findByReceiptNumber(receiptNumber) {
         return transactionsStore.find(t => t.receiptNumber === receiptNumber) || null;
     }
 
     /**
-     * Retrieve all transactions with filters
+     * Retrieve all active transactions for a specific booking ID
      */
-    static findAll(filters = {}) {
-        let results = [...transactionsStore];
-
-        if (filters.search) {
-            const query = filters.search.toLowerCase();
-            results = results.filter(t => 
-                t.id.toLowerCase().includes(query) ||
-                t.receiptNumber.toLowerCase().includes(query) ||
-                t.bookingId.toLowerCase().includes(query) ||
-                (t.referenceNumber && t.referenceNumber.toLowerCase().includes(query)) ||
-                (t.remarks && t.remarks.toLowerCase().includes(query)) ||
-                (t.collectedBy && t.collectedBy.toLowerCase().includes(query))
-            );
+    static getTransactionsByBookingId(bookingId, includeVoided = false) {
+        let txns = transactionsStore.filter(t => t.bookingId === bookingId);
+        if (!includeVoided) {
+            txns = txns.filter(t => !t.isVoided);
         }
-
-        if (filters.bookingId) {
-            results = results.filter(t => t.bookingId === filters.bookingId);
-        }
-
-        if (filters.paymentMethod && filters.paymentMethod !== 'All') {
-            results = results.filter(t => t.paymentMethod === filters.paymentMethod);
-        }
-
-        if (filters.type && filters.type !== 'All') {
-            results = results.filter(t => t.type === filters.type);
-        }
-
-        if (filters.status && filters.status !== 'All') {
-            if (filters.status === 'Voided') {
-                results = results.filter(t => t.isVoided);
-            } else if (filters.status === 'Success') {
-                results = results.filter(t => !t.isVoided && t.status === 'Success');
-            }
-        }
-
-        if (filters.duesFilter && filters.duesFilter !== 'All') {
-            results = results.filter(t => {
-                const summary = this.getBookingFinancialSummary(t.bookingId);
-                if (!summary) return false;
-                if (filters.duesFilter === 'DuesPending') {
-                    return summary.remainingRent > 0;
-                }
-                if (filters.duesFilter === 'CompletedDuesPending') {
-                    return summary.bookingStatus === 'Completed' && summary.remainingRent > 0;
-                }
-                if (filters.duesFilter === 'FullySettled') {
-                    return summary.isFullySettled;
-                }
-                if (filters.duesFilter === 'DepositHeld') {
-                    return summary.effectiveDepositHeld > 0;
-                }
-                return true;
-            });
-        }
-
-        // Sort descending by date and time
-        results.sort((a, b) => {
-            const dateTimeA = `${a.date} ${a.time}`;
-            const dateTimeB = `${b.date} ${b.time}`;
-            return dateTimeB.localeCompare(dateTimeA);
-        });
-
-        return results;
+        return txns;
     }
 
     /**
-     * Comprehensive Financial Calculation Engine & Contract Summary
+     * Compute Real-time Financial Summary for a Booking (Sync & Async compatible)
      */
-    static getBookingFinancialSummary(bookingId) {
-        const booking = BookingModel.findById(bookingId);
+    static getBookingFinancialSummary(bookingId, bookingData = null, txnsData = null) {
+        const BookingModel = require('./bookingModel');
+        const booking = bookingData || BookingModel.findById(bookingId);
         if (!booking) return null;
 
-        const transactions = this.getTransactionsByBookingId(bookingId, true); // Include voided for list view
+        const transactions = txnsData || transactionsStore.filter(t => t.bookingId === bookingId && !t.isVoided);
 
-        // 1. Contract Breakdown
         const contract = booking.contract || {};
         const hallRent = Number(contract.hallRent) || 10000;
-        // Security deposit: only include when explicitly configured (> 0)
         const securityDeposit = Number(contract.securityDeposit) || 0;
         const baseDiscount = Number(contract.baseDiscount) || 0;
 
-        const discountsList = contract.discountsList || [];
-        const extraDiscounts = discountsList.reduce((acc, d) => acc + (Number(d.amount) || 0), 0);
-        const totalDiscounts = baseDiscount + extraDiscounts;
-
         const extraChargesList = contract.extraChargesList || [];
-        const totalExtraCharges = extraChargesList.reduce((acc, c) => acc + (Number(c.amount) || 0), 0);
+        const totalExtraCharges = extraChargesList.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
 
-        const netRent = Math.max(0, hallRent - totalDiscounts + totalExtraCharges);
+        const discountsList = contract.discountsList || [];
+        const approvedDiscountsSum = discountsList.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+        const totalDiscounts = baseDiscount + approvedDiscountsSum;
 
-        // 2. Ledger Aggregates (ONLY non-voided transactions affect totals!)
+        const netRent = Math.max(0, hallRent + totalExtraCharges - totalDiscounts);
+
         let rentPaid = 0;
+        let rentRefunded = 0;
         let depositPaid = 0;
         let depositReturned = 0;
         let depositForfeited = 0;
         let depositAdjusted = 0;
-        let rentRefunded = 0;
 
         transactions.forEach(t => {
-            if (t.isVoided) return; // EXCLUDE VOIDED TRANSACTIONS
+            if (t.status !== 'Success') return;
             const amt = Number(t.amount) || 0;
+
             switch (t.type) {
                 case 'Advance':
                 case 'Rent Payment':
                 case 'Installment':
-                case 'Rental Payment':
                     rentPaid += amt;
+                    break;
+                case 'Refund':
+                    rentRefunded += amt;
                     break;
                 case 'Security Deposit':
                     depositPaid += amt;
                     break;
                 case 'Deposit Return':
-                case 'Deposit Refund':
                     depositReturned += amt;
-                    break;
-                case 'Refund':
-                case 'Rental Refund':
-                    rentRefunded += amt;
-                    break;
-                case 'Adjustment':
-                case 'Deposit Adjustment':
-                    depositAdjusted += amt;
                     break;
                 case 'Deposit Forfeiture':
                     depositForfeited += amt;
                     break;
+                case 'Adjustment':
+                    depositAdjusted += amt;
+                    break;
             }
         });
 
-        // 3. Financial Balances & Overpayment Calculations
-        const netRentPaid = rentPaid - rentRefunded; // Pure rent money received
+        const netRentPaid = Math.max(0, rentPaid - rentRefunded);
         const effectiveRentCovered = netRentPaid + depositAdjusted;
+        const effectiveDepositHeld = Math.max(0, depositPaid - depositReturned - depositForfeited - depositAdjusted);
 
         const remainingRent = Math.max(0, netRent - effectiveRentCovered);
+        const remainingDepositDue = Math.max(0, securityDeposit - depositPaid);
         const overpaidAmount = Math.max(0, effectiveRentCovered - netRent);
 
-        const effectiveDepositHeld = Math.max(0, depositPaid - depositReturned - depositForfeited - depositAdjusted);
-        const remainingDepositDue = Math.max(0, securityDeposit - depositPaid);
-
-        // Security Deposit visibility in Contract Summary:
-        // Contract Summary must ONLY show deposit line if deposit is explicitly collected and currently held (effectiveDepositHeld > 0).
         const showDepositInContract = effectiveDepositHeld > 0;
-        const totalContractAmount = netRent + (showDepositInContract ? effectiveDepositHeld : 0);
+        const totalContractAmount = showDepositInContract ? (netRent + securityDeposit) : netRent;
+        const remainingTotal = remainingRent + (showDepositInContract ? remainingDepositDue : 0);
 
-        const totalAmountPaid = rentPaid + depositPaid;
-        const remainingTotal = remainingRent + remainingDepositDue;
-        const totalRefunded = depositReturned + rentRefunded;
+        const totalAmountPaid = netRentPaid + depositPaid;
+        const totalRefunded = rentRefunded + depositReturned;
 
-        const paymentPercentage = netRent > 0 
-            ? Math.min(100, Math.round((effectiveRentCovered / netRent) * 100))
-            : 100;
-
-        const isFullySettled = (remainingRent <= 0 && effectiveDepositHeld === 0);
-        const isCompletedPaymentPending = (booking.status === 'Completed' && !isFullySettled);
-
-        // canProcessFinancials: ALL statuses allow financial actions EXCEPT Archived
-        // Completed events should never block payment collection or deposit management
-        const canProcessFinancials = (booking.status !== 'Archived');
-
-        // 4. Dynamic Payment Status (Independent of Booking Status)
-        let paymentStatus = 'Unpaid';
-        if (booking.status === 'Cancelled') {
-            paymentStatus = 'Cancelled';
-        } else if (booking.status === 'Archived') {
-            paymentStatus = 'Archived';
-        } else if (overpaidAmount > 0) {
-            paymentStatus = 'Overpaid';
-        } else if (rentRefunded > 0 && rentPaid <= rentRefunded) {
-            paymentStatus = 'Refund Pending';
-        } else if (remainingRent <= 0 && netRent > 0) {
-            paymentStatus = 'Fully Paid';
-        } else if (rentPaid >= netRent * 0.5) {
-            paymentStatus = 'Partially Paid';
-        } else if (rentPaid > 0) {
-            paymentStatus = 'Advance Paid';
-        } else {
-            paymentStatus = 'Unpaid';
+        let paymentPercentage = 0;
+        if (netRent > 0) {
+            paymentPercentage = Math.min(100, Math.round((effectiveRentCovered / netRent) * 100));
+        } else if (netRent === 0 && effectiveRentCovered >= 0) {
+            paymentPercentage = 100;
         }
 
-        // 5. Dynamic Deposit Status (Simplified & Clean)
-        let depositStatus = 'Deposit Pending';
-        if (securityDeposit === 0 && depositPaid === 0) {
-            depositStatus = 'N/A'; // No deposit configured or received
-        } else if (effectiveDepositHeld === 0 && (depositAdjusted > 0 || depositReturned > 0 || depositForfeited > 0)) {
-            depositStatus = 'Deposit Settled';
-        } else if (depositForfeited >= securityDeposit && securityDeposit > 0) {
-            depositStatus = 'Deposit Forfeited';
-        } else if (effectiveDepositHeld > 0) {
-            depositStatus = 'Deposit Received (Held)';
+        let paymentStatus = 'Pending';
+        if (booking.status === 'Cancelled') {
+            paymentStatus = 'Cancelled';
+        } else if (effectiveRentCovered >= netRent && netRent > 0 && overpaidAmount === 0) {
+            paymentStatus = 'Fully Paid';
+        } else if (overpaidAmount > 0) {
+            paymentStatus = 'Overpaid';
+        } else if (effectiveRentCovered > 0 && effectiveRentCovered < netRent) {
+            paymentStatus = 'Partially Paid';
+        } else if (effectiveRentCovered === 0) {
+            paymentStatus = 'Pending';
+        }
+
+        let depositStatus = 'Not Required';
+        if (securityDeposit === 0) {
+            depositStatus = 'Not Required';
         } else if (depositReturned >= depositPaid && depositPaid > 0) {
             depositStatus = 'Deposit Returned';
+        } else if (depositForfeited >= depositPaid && depositPaid > 0) {
+            depositStatus = 'Deposit Forfeited';
+        } else if (depositAdjusted >= depositPaid && depositPaid > 0) {
+            depositStatus = 'Deposit Adjusted';
+        } else if (effectiveDepositHeld >= securityDeposit && securityDeposit > 0) {
+            depositStatus = 'Deposit Held';
+        } else if (effectiveDepositHeld > 0 && effectiveDepositHeld < securityDeposit) {
+            depositStatus = 'Partial Deposit Held';
         } else {
             depositStatus = 'Deposit Pending';
         }
 
-        // 6. Dynamic Hall Availability Status
-        let hallAvailabilityStatus = 'Slot Confirmed & Occupied';
-        const todayStr = new Date().toISOString().split('T')[0];
-
-        if (booking.status === 'Cancelled' || booking.status === 'Archived') {
-            hallAvailabilityStatus = 'Slot Available (Cancelled/Archived)';
-        } else if (booking.bookingDate < todayStr) {
-            hallAvailabilityStatus = 'Historical Event Record';
+        let hallAvailabilityStatus = 'Reserved';
+        if (booking.status === 'Confirmed') {
+            hallAvailabilityStatus = 'Occupied';
         } else if (booking.status === 'Draft') {
-            hallAvailabilityStatus = 'Draft Reservation (Tentative)';
-        } else {
-            hallAvailabilityStatus = 'Slot Confirmed & Occupied';
+            hallAvailabilityStatus = 'Tentative';
+        } else if (booking.status === 'Completed') {
+            hallAvailabilityStatus = 'Completed';
+        } else if (booking.status === 'Cancelled' || booking.status === 'Archived') {
+            hallAvailabilityStatus = 'Available';
         }
+
+        const isFullySettled = (remainingRent === 0) && (effectiveDepositHeld === 0 || depositStatus === 'Deposit Returned' || depositStatus === 'Deposit Adjusted' || depositStatus === 'Deposit Forfeited' || depositStatus === 'Not Required');
+        const isCompletedPaymentPending = (booking.status === 'Completed' && remainingRent > 0);
+        const canProcessFinancials = booking.status !== 'Cancelled' && booking.status !== 'Archived';
 
         return {
             bookingId: booking.id,
+            bookingStatus: booking.status,
             customerName: booking.customerName,
-            mobileNumber: booking.mobileNumber,
-            eventName: booking.eventName,
             hall: booking.hall,
             bookingDate: booking.bookingDate,
-            startTime: booking.startTime,
-            endTime: booking.endTime,
-            bookingStatus: booking.status,
-            notes: booking.notes,
 
-            // Financial Contract
+            // Contract Breakdown
             hallRent,
             securityDeposit,
             baseDiscount,
@@ -896,14 +462,15 @@ class PaymentModel {
      * Overall Financial Statistics & Aggregations for Reports
      */
     static getFinancialStats() {
+        const BookingModel = require('./bookingModel');
         const todayStr = getFormattedDate(0);
-        
+
         const activeTxns = transactionsStore.filter(t => !t.isVoided && t.status === 'Success');
         const todayTxns = activeTxns.filter(t => t.date === todayStr);
 
         const getMethodCollection = (method) => {
             const sum = todayTxns.reduce((acc, t) => {
-                const matchesMethod = (method === 'Card') 
+                const matchesMethod = (method === 'Card')
                     ? (t.paymentMethod && t.paymentMethod.includes('Card'))
                     : (t.paymentMethod === method);
                 if (!matchesMethod) return acc;

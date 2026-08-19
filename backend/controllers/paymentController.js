@@ -8,10 +8,10 @@ class PaymentController {
     /**
      * GET /api/payments
      */
-    static getAllPayments(req, res) {
+    static async getAllPayments(req, res) {
         try {
             const filters = req.query;
-            const transactions = PaymentModel.findAll(filters);
+            const transactions = await PaymentModel.findAll(filters);
             return res.status(200).json({
                 success: true,
                 count: transactions.length,
@@ -29,10 +29,10 @@ class PaymentController {
     /**
      * GET /api/payments/booking/:bookingId
      */
-    static getBookingSummary(req, res) {
+    static async getBookingSummary(req, res) {
         try {
             const { bookingId } = req.params;
-            const summary = PaymentModel.getBookingFinancialSummary(bookingId);
+            const summary = await PaymentModel.getBookingFinancialSummary(bookingId);
             if (!summary) {
                 return res.status(404).json({
                     success: false,
@@ -55,7 +55,7 @@ class PaymentController {
     /**
      * POST /api/payments
      */
-    static createPayment(req, res) {
+    static async createPayment(req, res) {
         try {
             const { bookingId, amount, type, paymentMethod, collectedBy, referenceNumber, remarks } = req.body;
 
@@ -74,7 +74,7 @@ class PaymentController {
                 });
             }
 
-            const booking = BookingModel.findById(bookingId);
+            const booking = await BookingModel.findById(bookingId);
             if (!booking) {
                 return res.status(404).json({
                     success: false,
@@ -82,7 +82,7 @@ class PaymentController {
                 });
             }
 
-            const transaction = PaymentModel.createTransaction({
+            const transaction = await PaymentModel.createTransaction({
                 bookingId,
                 amount: numAmount,
                 type: type || 'Rent Payment',
@@ -93,7 +93,7 @@ class PaymentController {
             });
 
             // Get updated summary
-            const updatedSummary = PaymentModel.getBookingFinancialSummary(bookingId);
+            const updatedSummary = await PaymentModel.getBookingFinancialSummary(bookingId);
 
             return res.status(201).json({
                 success: true,
@@ -115,7 +115,7 @@ class PaymentController {
     /**
      * PATCH /api/payments/:receiptNumber/void
      */
-    static voidPayment(req, res) {
+    static async voidPayment(req, res) {
         try {
             const { receiptNumber } = req.params;
             const { voidReason, voidedBy } = req.body;
@@ -127,8 +127,8 @@ class PaymentController {
                 });
             }
 
-            const voidedTxn = PaymentModel.voidTransaction(receiptNumber, voidReason, voidedBy || 'Admin');
-            const updatedSummary = PaymentModel.getBookingFinancialSummary(voidedTxn.bookingId);
+            const voidedTxn = await PaymentModel.voidTransaction(receiptNumber, voidReason, voidedBy || 'Admin');
+            const updatedSummary = await PaymentModel.getBookingFinancialSummary(voidedTxn.bookingId);
 
             return res.status(200).json({
                 success: true,
@@ -150,7 +150,7 @@ class PaymentController {
     /**
      * POST /api/payments/deposit-action
      */
-    static manageDeposit(req, res) {
+    static async manageDeposit(req, res) {
         try {
             const { bookingId, action, amount, remarks, collectedBy } = req.body;
 
@@ -161,7 +161,7 @@ class PaymentController {
                 });
             }
 
-            const transaction = PaymentModel.manageDeposit(
+            const transaction = await PaymentModel.manageDeposit(
                 bookingId,
                 action,
                 amount,
@@ -169,7 +169,7 @@ class PaymentController {
                 collectedBy || 'Admin'
             );
 
-            const updatedSummary = PaymentModel.getBookingFinancialSummary(bookingId);
+            const updatedSummary = await PaymentModel.getBookingFinancialSummary(bookingId);
 
             const actionLabelMap = {
                 'receive': 'Security Deposit Received',
@@ -199,10 +199,10 @@ class PaymentController {
     /**
      * GET /api/payments/receipt/:receiptNumber
      */
-    static getReceiptDetails(req, res) {
+    static async getReceiptDetails(req, res) {
         try {
             const { receiptNumber } = req.params;
-            const transaction = PaymentModel.findByReceiptNumber(receiptNumber);
+            const transaction = await PaymentModel.findByReceiptNumber(receiptNumber);
             if (!transaction) {
                 return res.status(404).json({
                     success: false,
@@ -210,7 +210,7 @@ class PaymentController {
                 });
             }
 
-            const summary = PaymentModel.getBookingFinancialSummary(transaction.bookingId);
+            const summary = await PaymentModel.getBookingFinancialSummary(transaction.bookingId);
 
             return res.status(200).json({
                 success: true,
@@ -231,9 +231,9 @@ class PaymentController {
     /**
      * GET /api/payments/stats
      */
-    static getFinancialStats(req, res) {
+    static async getFinancialStats(req, res) {
         try {
-            const stats = PaymentModel.getFinancialStats();
+            const stats = await PaymentModel.getFinancialStats();
             return res.status(200).json({
                 success: true,
                 data: stats

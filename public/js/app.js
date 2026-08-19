@@ -4273,21 +4273,7 @@ function initApp() {
 
             let daySlotsData = null;
 
-            // 1. Check client-side Data Adapter (LocalStorage key: 'hall_mock_data_v1')
-            if (typeof window !== 'undefined' && window.dataAdapter && typeof window.dataAdapter.getDaySlots === 'function') {
-                try {
-                    const adapterResp = window.dataAdapter.getDaySlots(selectedDate);
-                    if (adapterResp && adapterResp.data) {
-                        daySlotsData = adapterResp.data;
-                    } else if (adapterResp && adapterResp.slots) {
-                        daySlotsData = adapterResp;
-                    }
-                } catch (adapterErr) {
-                    console.warn("dataAdapter.getDaySlots warning:", adapterErr);
-                }
-            }
-
-            // 2. Fetch live data from backend endpoint if reachable
+            // 1. Fetch live data from MongoDB Atlas backend endpoint
             try {
                 const res = await fetch(`/api/stats/day-slots?date=${encodeURIComponent(selectedDate)}`);
                 if (res.ok) {
@@ -4297,10 +4283,20 @@ function initApp() {
                     }
                 }
             } catch (fetchErr) {
-                // API offline or mock mode - fallback seamlessly to adapter
+                console.warn("Backend API fetch notice:", fetchErr.message);
             }
 
-            // 3. Fallback computation if neither returned data
+            // 2. Fallback to client dataAdapter only if backend is unreachable
+            if (!daySlotsData && typeof window !== 'undefined' && window.dataAdapter && typeof window.dataAdapter.getDaySlots === 'function') {
+                try {
+                    const adapterResp = window.dataAdapter.getDaySlots(selectedDate);
+                    if (adapterResp && adapterResp.data) {
+                        daySlotsData = adapterResp.data;
+                    }
+                } catch (adapterErr) {}
+            }
+
+            // 3. Clean empty state fallback if no data
             if (!daySlotsData) {
                 daySlotsData = computeDaySlotsFallback(selectedDate);
             }

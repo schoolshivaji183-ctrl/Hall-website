@@ -5,7 +5,10 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "seed": "node backend/scripts/seed.js",
+    "migrate": "node backend/scripts/migrate.js",
+    "reset": "node backend/scripts/resetData.js"
   },
   "keywords": [
     "express",
@@ -16,7 +19,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.4.2",
     "express": "^4.19.2",
-    "cors": "^2.8.5"
+    "mongoose": "^9.9.3"
   }
 }

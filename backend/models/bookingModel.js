@@ -1,11 +1,12 @@
 /**
- * In-Memory Booking Model & Data Repository (Commercial ERP Architecture)
+ * Booking Model & Data Repository (MongoDB Atlas & Mongoose)
  * 
- * DESIGN RATIONALE FOR MONGODB COMPATIBILITY:
- * Encapsulates all booking records, Financial Contract definitions, lifecycle states,
- * activity timelines, and deletion safeguards.
+ * Encapsulates booking records, Financial Contract definitions, lifecycle states,
+ * activity timelines, and slot collision prevention.
  */
 
+const { Booking } = require('./schemas/BookingSchema');
+const { isConnected } = require('../config/db');
 const BookingValidator = require('../utils/bookingValidator');
 const AuditModel = require('./auditModel');
 
@@ -23,486 +24,38 @@ const todayStr = getFormattedDate(0);
 const tomorrowStr = getFormattedDate(1);
 const nextWeekStr = getFormattedDate(5);
 
-// Helper for formatted time HH:MM:SS
 function getFormattedTime() {
     return new Date().toTimeString().split(' ')[0];
 }
 
-// Pre-seeded sample bookings with Financial Contracts & Timelines
-let bookingsStore = [
-    {
-        id: "BOOK-1001",
-        customerName: "Dr. A. Sharma",
-        mobileNumber: "9876543210",
-        eventName: "AI & Data Science Workshop",
-        hall: "Hall 1",
-        bookingDate: todayStr,
-        startTime: "09:00",
-        endTime: "12:00",
-        status: "Confirmed",
-        notes: "Projector and sound system required.",
-        contract: {
-            hallRent: 10000,
-            securityDeposit: 2000,
-            baseDiscount: 1000,
-            discountsList: [],
-            extraChargesList: [
-                { id: "CHG-101", category: "Electricity Charge", amount: 500, remarks: "Generator backup", addedBy: "Admin", date: todayStr }
-            ]
-        },
-        timeline: [
-            { id: "TL-101", title: "Booking Created", description: "Initial confirmed booking registered.", category: "Booking", timestamp: new Date().toISOString(), date: todayStr, time: "09:00:00", user: "Admin" }
-        ]
-    },
-    {
-        id: "BOOK-1002",
-        customerName: "Prof. R. Mehta",
-        mobileNumber: "9812345678",
-        eventName: "Annual Faculty Meeting",
-        hall: "Hall 2",
-        bookingDate: todayStr,
-        startTime: "17:00",
-        endTime: "20:00",
-        status: "Confirmed",
-        notes: "Arrangement for 50 attendees.",
-        contract: {
-            hallRent: 12000,
-            securityDeposit: 2000,
-            baseDiscount: 0,
-            discountsList: [],
-            extraChargesList: []
-        },
-        timeline: [
-            { id: "TL-102", title: "Booking Created", description: "Confirmed booking created for Hall 2.", category: "Booking", timestamp: new Date().toISOString(), date: todayStr, time: "10:00:00", user: "Admin" }
-        ]
-    },
-    {
-        id: "BOOK-1003",
-        customerName: "Er. V. Patel",
-        mobileNumber: "9711223344",
-        eventName: "Cybersecurity Guest Lecture",
-        hall: "Hall 1",
-        bookingDate: tomorrowStr,
-        startTime: "10:00",
-        endTime: "13:00",
-        status: "Confirmed",
-        notes: "High-speed Wi-Fi access needed.",
-        contract: {
-            hallRent: 15000,
-            securityDeposit: 3000,
-            baseDiscount: 2000,
-            discountsList: [],
-            extraChargesList: [
-                { id: "CHG-103", category: "Cleaning Charge", amount: 1000, remarks: "Deep clean post-event", addedBy: "Admin", date: tomorrowStr }
-            ]
-        },
-        timeline: [
-            { id: "TL-103", title: "Booking Created", description: "Booking created for tomorrow.", category: "Booking", timestamp: new Date().toISOString(), date: todayStr, time: "11:00:00", user: "Admin" }
-        ]
-    },
-    {
-        id: "BOOK-1004",
-        customerName: "Dr. K. Verma",
-        mobileNumber: "9988776655",
-        eventName: "Robotics Exhibition Prep",
-        hall: "Hall 2",
-        bookingDate: nextWeekStr,
-        startTime: "11:00",
-        endTime: "15:00",
-        status: "Draft",
-        notes: "Enquiry in discussion. Draft status.",
-        contract: {
-            hallRent: 20000,
-            securityDeposit: 5000,
-            baseDiscount: 0,
-            discountsList: [],
-            extraChargesList: [
-                { id: "CHG-104", category: "Decoration Charge", amount: 2000, remarks: "Stage decoration setup", addedBy: "Admin", date: nextWeekStr }
-            ]
-        },
-        timeline: [
-            { id: "TL-104", title: "Draft Booking Created", description: "Initial enquiry saved as Draft.", category: "Booking", timestamp: new Date().toISOString(), date: todayStr, time: "12:00:00", user: "Admin" }
-        ]
-    },
-    // Multi-Year Historical & Future Sample Bookings (2023, 2024, 2025, 2026, 2027)
-    {
-        id: "BOOK-2023-01",
-        customerName: "Prof. Arvind Joshi",
-        mobileNumber: "9821098765",
-        eventName: "State Educational Symposium 2023",
-        hall: "Hall 1",
-        bookingDate: "2023-04-12",
-        startTime: "09:00",
-        endTime: "17:00",
-        status: "Completed",
-        notes: "State-level educational seminar and presentation sessions.",
-        contract: {
-            hallRent: 20000,
-            securityDeposit: 5000,
-            baseDiscount: 0,
-            discountsList: [],
-            extraChargesList: []
-        },
-        timeline: [
-            { id: "TL-2023-01", title: "Event Completed", description: "Educational symposium concluded successfully.", category: "Booking", timestamp: "2023-04-12T18:00:00.000Z", date: "2023-04-12", time: "18:00:00", user: "Admin" }
-        ]
-    },
-    {
-        id: "BOOK-2023-02",
-        customerName: "Dr. Meenakshi Rao",
-        mobileNumber: "9833221100",
-        eventName: "Alumni Reunion Meet 2023",
-        hall: "Hall 2",
-        bookingDate: "2023-08-19",
-        startTime: "11:00",
-        endTime: "16:00",
-        status: "Completed",
-        notes: "Golden jubilee batch alumni gathering.",
-        contract: {
-            hallRent: 15000,
-            securityDeposit: 3000,
-            baseDiscount: 0,
-            discountsList: [],
-            extraChargesList: []
-        },
-        timeline: [
-            { id: "TL-2023-02", title: "Event Completed", description: "Alumni reunion completed.", category: "Booking", timestamp: "2023-08-19T17:00:00.000Z", date: "2023-08-19", time: "17:00:00", user: "Admin" }
-        ]
-    },
-    {
-        id: "BOOK-2023-03",
-        customerName: "Sanjay Shinde",
-        mobileNumber: "9867543210",
-        eventName: "Inter-University Cultural Fest 2023",
-        hall: "Hall 1",
-        bookingDate: "2023-11-25",
-        startTime: "14:00",
-        endTime: "21:00",
-        status: "Completed",
-        notes: "Cultural drama and musical evening.",
-        contract: {
-            hallRent: 22000,
-            securityDeposit: 4000,
-            baseDiscount: 0,
-            discountsList: [],
-            extraChargesList: []
-        },
-        timeline: [
-            { id: "TL-2023-03", title: "Event Completed", description: "Cultural fest concluded.", category: "Booking", timestamp: "2023-11-25T22:00:00.000Z", date: "2023-11-25", time: "22:00:00", user: "Admin" }
-        ]
-    },
-    {
-        id: "BOOK-2024-01",
-        customerName: "Dr. Sandeep Kulkarni",
-        mobileNumber: "9822011223",
-        eventName: "National Tech Summit 2024",
-        hall: "Hall 1",
-        bookingDate: "2024-03-15",
-        startTime: "09:00",
-        endTime: "17:00",
-        status: "Completed",
-        notes: "Full day conference with audio-visual recording.",
-        contract: {
-            hallRent: 25000,
-            securityDeposit: 5000,
-            baseDiscount: 0,
-            discountsList: [],
-            extraChargesList: []
-        },
-        timeline: [
-            { id: "TL-2024-01", title: "Event Completed", description: "Event completed successfully.", category: "Booking", timestamp: "2024-03-15T18:00:00.000Z", date: "2024-03-15", time: "18:00:00", user: "Admin" }
-        ]
-    },
-    {
-        id: "BOOK-2024-02",
-        customerName: "Prof. Sunita Deshmukh",
-        mobileNumber: "9833445566",
-        eventName: "Annual Convocation Ceremony 2024",
-        hall: "Hall 1",
-        bookingDate: "2024-07-20",
-        startTime: "10:00",
-        endTime: "14:00",
-        status: "Completed",
-        notes: "Stage arrangement for 200 guests.",
-        contract: {
-            hallRent: 30000,
-            securityDeposit: 5000,
-            baseDiscount: 0,
-            discountsList: [],
-            extraChargesList: []
-        },
-        timeline: [
-            { id: "TL-2024-02", title: "Event Completed", description: "Convocation ceremony completed.", category: "Booking", timestamp: "2024-07-20T15:00:00.000Z", date: "2024-07-20", time: "15:00:00", user: "Admin" }
-        ]
-    },
-    {
-        id: "BOOK-2024-03",
-        customerName: "Dr. Nitin Gadre",
-        mobileNumber: "9844556677",
-        eventName: "Biotechnology Research Symposium",
-        hall: "Hall 2",
-        bookingDate: "2024-09-10",
-        startTime: "11:00",
-        endTime: "16:00",
-        status: "Completed",
-        notes: "Lab projector setup.",
-        contract: {
-            hallRent: 15000,
-            securityDeposit: 3000,
-            baseDiscount: 0,
-            discountsList: [],
-            extraChargesList: []
-        },
-        timeline: [
-            { id: "TL-2024-03", title: "Event Completed", description: "Symposium concluded.", category: "Booking", timestamp: "2024-09-10T17:00:00.000Z", date: "2024-09-10", time: "17:00:00", user: "Admin" }
-        ]
-    },
-    {
-        id: "BOOK-2024-04",
-        customerName: "Prof. Ananya Sen",
-        mobileNumber: "9855667788",
-        eventName: "Faculty Cultural & Music Night",
-        hall: "Hall 2",
-        bookingDate: "2024-11-05",
-        startTime: "18:00",
-        endTime: "21:30",
-        status: "Completed",
-        notes: "Stage lighting and sound checks.",
-        contract: {
-            hallRent: 12000,
-            securityDeposit: 2000,
-            baseDiscount: 0,
-            discountsList: [],
-            extraChargesList: []
-        },
-        timeline: [
-            { id: "TL-2024-04", title: "Event Completed", description: "Event completed.", category: "Booking", timestamp: "2024-11-05T22:00:00.000Z", date: "2024-11-05", time: "22:00:00", user: "Admin" }
-        ]
-    },
-    {
-        id: "BOOK-2025-01",
-        customerName: "Dr. Vikram Joshi",
-        mobileNumber: "9866778899",
-        eventName: "Global AI & Robotics Conclave 2025",
-        hall: "Hall 1",
-        bookingDate: "2025-02-14",
-        startTime: "09:00",
-        endTime: "18:00",
-        status: "Completed",
-        notes: "International keynote speakers.",
-        contract: {
-            hallRent: 35000,
-            securityDeposit: 5000,
-            baseDiscount: 0,
-            discountsList: [],
-            extraChargesList: []
-        },
-        timeline: [
-            { id: "TL-2025-01", title: "Event Completed", description: "Conclave concluded.", category: "Booking", timestamp: "2025-02-14T19:00:00.000Z", date: "2025-02-14", time: "19:00:00", user: "Admin" }
-        ]
-    },
-    {
-        id: "BOOK-2025-02",
-        customerName: "Dr. Meenakshi Rao",
-        mobileNumber: "9877889900",
-        eventName: "International Medical & Healthcare Seminar",
-        hall: "Hall 1",
-        bookingDate: "2025-05-18",
-        startTime: "10:00",
-        endTime: "15:00",
-        status: "Completed",
-        notes: "Medical equipment display area requested.",
-        contract: {
-            hallRent: 28000,
-            securityDeposit: 4000,
-            baseDiscount: 0,
-            discountsList: [],
-            extraChargesList: []
-        },
-        timeline: [
-            { id: "TL-2025-02", title: "Event Completed", description: "Seminar completed.", category: "Booking", timestamp: "2025-05-18T16:00:00.000Z", date: "2025-05-18", time: "16:00:00", user: "Admin" }
-        ]
-    },
-    {
-        id: "BOOK-2025-03",
-        customerName: "Prof. Chetan Bhagat",
-        mobileNumber: "9888990011",
-        eventName: "Inter-College Debate Championship",
-        hall: "Hall 2",
-        bookingDate: "2025-08-22",
-        startTime: "11:00",
-        endTime: "16:00",
-        status: "Completed",
-        notes: "Podium and mic arrangement for 16 teams.",
-        contract: {
-            hallRent: 18000,
-            securityDeposit: 3000,
-            baseDiscount: 0,
-            discountsList: [],
-            extraChargesList: []
-        },
-        timeline: [
-            { id: "TL-2025-03", title: "Event Completed", description: "Debate event finished.", category: "Booking", timestamp: "2025-08-22T17:00:00.000Z", date: "2025-08-22", time: "17:00:00", user: "Admin" }
-        ]
-    },
-    {
-        id: "BOOK-2025-04",
-        customerName: "Dr. Suresh Nair",
-        mobileNumber: "9899001122",
-        eventName: "IEEE Regional Engineering Summit",
-        hall: "Hall 1",
-        bookingDate: "2025-10-12",
-        startTime: "09:30",
-        endTime: "17:30",
-        status: "Completed",
-        notes: "Exhibition stalls and keynote area.",
-        contract: {
-            hallRent: 40000,
-            securityDeposit: 6000,
-            baseDiscount: 0,
-            discountsList: [],
-            extraChargesList: []
-        },
-        timeline: [
-            { id: "TL-2025-04", title: "Event Completed", description: "Summit concluded.", category: "Booking", timestamp: "2025-10-12T18:00:00.000Z", date: "2025-10-12", time: "18:00:00", user: "Admin" }
-        ]
-    },
-    {
-        id: "BOOK-2025-05",
-        customerName: "Prof. Smita Patil",
-        mobileNumber: "9811224455",
-        eventName: "Startup & Entrepreneurship Expo",
-        hall: "Hall 2",
-        bookingDate: "2025-12-04",
-        startTime: "10:00",
-        endTime: "16:00",
-        status: "Completed",
-        notes: "Display tables and banner stands.",
-        contract: {
-            hallRent: 22000,
-            securityDeposit: 4000,
-            baseDiscount: 0,
-            discountsList: [],
-            extraChargesList: []
-        },
-        timeline: [
-            { id: "TL-2025-05", title: "Event Completed", description: "Expo closed.", category: "Booking", timestamp: "2025-12-04T17:00:00.000Z", date: "2025-12-04", time: "17:00:00", user: "Admin" }
-        ]
-    },
-    {
-        id: "BOOK-2026-05",
-        customerName: "Dean Office",
-        mobileNumber: "9822334455",
-        eventName: "Quarterly Academic Senate Assembly",
-        hall: "Hall 1",
-        bookingDate: "2026-04-10",
-        startTime: "10:00",
-        endTime: "13:00",
-        status: "Completed",
-        notes: "Senate members meeting.",
-        contract: {
-            hallRent: 20000,
-            securityDeposit: 3000,
-            baseDiscount: 0,
-            discountsList: [],
-            extraChargesList: []
-        },
-        timeline: [
-            { id: "TL-2026-05", title: "Booking Created", description: "Senate meeting booked.", category: "Booking", timestamp: "2026-04-10T09:00:00.000Z", date: "2026-04-10", time: "09:00:00", user: "Admin" }
-        ]
-    },
-    {
-        id: "BOOK-2026-06",
-        customerName: "Prof. T. Agarwal",
-        mobileNumber: "9833556677",
-        eventName: "Spring Inter-College Hackathon 2026",
-        hall: "Hall 2",
-        bookingDate: "2026-05-25",
-        startTime: "09:00",
-        endTime: "21:00",
-        status: "Completed",
-        notes: "Extended overnight networking.",
-        contract: {
-            hallRent: 16000,
-            securityDeposit: 2000,
-            baseDiscount: 0,
-            discountsList: [],
-            extraChargesList: []
-        },
-        timeline: [
-            { id: "TL-2026-06", title: "Booking Created", description: "Hackathon scheduled.", category: "Booking", timestamp: "2026-05-25T08:30:00.000Z", date: "2026-05-25", time: "08:30:00", user: "Admin" }
-        ]
-    },
-    {
-        id: "BOOK-2026-07",
-        customerName: "Alumni Association",
-        mobileNumber: "9844667788",
-        eventName: "Silver Jubilee Alumni Reunion Gala",
-        hall: "Hall 1",
-        bookingDate: "2026-11-15",
-        startTime: "17:00",
-        endTime: "22:00",
-        status: "Confirmed",
-        notes: "Banquet dinner setup.",
-        contract: {
-            hallRent: 30000,
-            securityDeposit: 5000,
-            baseDiscount: 0,
-            discountsList: [],
-            extraChargesList: []
-        },
-        timeline: [
-            { id: "TL-2026-07", title: "Booking Created", description: "Alumni gala booked.", category: "Booking", timestamp: "2026-08-01T10:00:00.000Z", date: "2026-08-01", time: "10:00:00", user: "Admin" }
-        ]
-    },
-    {
-        id: "BOOK-2027-01",
-        customerName: "Global Education Council",
-        mobileNumber: "9855778899",
-        eventName: "World Education Forum 2027",
-        hall: "Hall 1",
-        bookingDate: "2027-02-20",
-        startTime: "09:00",
-        endTime: "18:00",
-        status: "Confirmed",
-        notes: "Early booking for international delegates.",
-        contract: {
-            hallRent: 45000,
-            securityDeposit: 10000,
-            baseDiscount: 0,
-            discountsList: [],
-            extraChargesList: []
-        },
-        timeline: [
-            { id: "TL-2027-01", title: "Booking Created", description: "World Forum 2027 reserved.", category: "Booking", timestamp: "2026-08-10T11:00:00.000Z", date: "2026-08-10", time: "11:00:00", user: "Admin" }
-        ]
-    },
-    {
-        id: "BOOK-2027-02",
-        customerName: "National Physics Society",
-        mobileNumber: "9866889900",
-        eventName: "National Physics Olympiad 2027",
-        hall: "Hall 2",
-        bookingDate: "2027-04-15",
-        startTime: "10:00",
-        endTime: "16:00",
-        status: "Confirmed",
-        notes: "Exam halls setup with spaced seating.",
-        contract: {
-            hallRent: 25000,
-            securityDeposit: 5000,
-            baseDiscount: 0,
-            discountsList: [],
-            extraChargesList: []
-        },
-        timeline: [
-            { id: "TL-2027-02", title: "Booking Created", description: "Olympiad booked.", category: "Booking", timestamp: "2026-08-12T14:00:00.000Z", date: "2026-08-12", time: "14:00:00", user: "Admin" }
-        ]
-    }
-];
+// In-memory bookings store synchronized with MongoDB Atlas
+let bookingsStore = [];
 
 class BookingModel {
+    /**
+     * Synchronize in-memory cache with MongoDB Atlas
+     */
+    static async syncFromDB() {
+        if (isConnected()) {
+            try {
+                const docs = await Booking.find({}).lean();
+                bookingsStore = docs || [];
+                return bookingsStore;
+            } catch (err) {
+                console.warn('⚠️  [MongoDB] Failed to sync bookings from Atlas:', err.message);
+            }
+        }
+        return bookingsStore;
+    }
+
+    /**
+     * Clear all bookings (used for clean slate resets)
+     */
+    static clearStore() {
+        bookingsStore = [];
+    }
     static checkConflict(hall, bookingDate, startTime, endTime, excludeId = null, status = 'Confirmed') {
+        const existingBookings = this.findAll();
         const validation = BookingValidator.validateSlot({
             hall,
             bookingDate,
@@ -510,12 +63,13 @@ class BookingModel {
             endTime,
             status,
             excludeId,
-            existingBookings: bookingsStore
+            existingBookings
         });
         return !validation.isValid;
     }
 
     static validateSlotDetails({ hall, bookingDate, startTime, endTime, status, excludeId }) {
+        const existingBookings = this.findAll();
         return BookingValidator.validateSlot({
             hall,
             bookingDate,
@@ -523,7 +77,7 @@ class BookingModel {
             endTime,
             status,
             excludeId,
-            existingBookings: bookingsStore
+            existingBookings
         });
     }
 
@@ -532,14 +86,14 @@ class BookingModel {
 
         if (filters.search && filters.search.trim() !== '') {
             const query = filters.search.trim().toLowerCase();
-            results = results.filter(b => 
-                b.customerName.toLowerCase().includes(query) ||
-                b.eventName.toLowerCase().includes(query) ||
-                b.id.toLowerCase().includes(query) ||
-                b.mobileNumber.includes(query) ||
-                b.hall.toLowerCase().includes(query) ||
-                b.status.toLowerCase().includes(query) ||
-                b.bookingDate.includes(query)
+            results = results.filter(b =>
+                (b.customerName || '').toLowerCase().includes(query) ||
+                (b.eventName || '').toLowerCase().includes(query) ||
+                (b.id || '').toLowerCase().includes(query) ||
+                (b.mobileNumber || '').includes(query) ||
+                (b.hall || '').toLowerCase().includes(query) ||
+                (b.status || '').toLowerCase().includes(query) ||
+                (b.bookingDate || '').includes(query)
             );
         }
 
@@ -548,9 +102,8 @@ class BookingModel {
         }
 
         if (filters.hall && filters.hall !== 'All' && filters.hall.trim() !== '') {
-            // Support comma separated like "Hall 1, Hall 2" if needed
             const hallQueries = filters.hall.split(',').map(h => h.trim().toLowerCase());
-            results = results.filter(b => hallQueries.includes(b.hall.toLowerCase()));
+            results = results.filter(b => hallQueries.includes((b.hall || '').toLowerCase()));
         }
 
         if (filters.status && filters.status !== 'All' && filters.status.trim() !== '') {
@@ -564,9 +117,9 @@ class BookingModel {
         }
 
         results.sort((a, b) => {
-            const dateCmp = a.bookingDate.localeCompare(b.bookingDate);
+            const dateCmp = (a.bookingDate || '').localeCompare(b.bookingDate || '');
             if (dateCmp !== 0) return dateCmp;
-            return a.startTime.localeCompare(b.startTime);
+            return (a.startTime || '').localeCompare(b.startTime || '');
         });
 
         return results;
@@ -577,11 +130,6 @@ class BookingModel {
     }
 
     static addTimelineEvent(id, { title, description, category = 'General', user = 'Admin' }) {
-        const booking = this.findById(id);
-        if (!booking) return null;
-
-        if (!booking.timeline) booking.timeline = [];
-
         const now = new Date();
         const event = {
             id: `TL-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -594,19 +142,30 @@ class BookingModel {
             user
         };
 
-        booking.timeline.push(event);
+        const booking = this.findById(id);
+        if (booking) {
+            if (!booking.timeline) booking.timeline = [];
+            booking.timeline.push(event);
+        }
+
+        if (isConnected()) {
+            Booking.updateOne({ id }, { $push: { timeline: event } }).catch(err => {
+                console.warn('⚠️  [MongoDB] Failed to add timeline event:', err.message);
+            });
+        }
+
         return event;
     }
 
     static create(data) {
         const newId = `BOOK-${Math.floor(1000 + Math.random() * 9000)}`;
         const status = data.status || 'Confirmed';
-        
+
         const newBooking = {
             id: newId,
-            customerName: data.customerName.trim(),
-            mobileNumber: data.mobileNumber.trim(),
-            eventName: data.eventName.trim(),
+            customerName: (data.customerName || '').trim(),
+            mobileNumber: (data.mobileNumber || '').trim(),
+            eventName: (data.eventName || '').trim(),
             hall: data.hall,
             bookingDate: data.bookingDate,
             startTime: data.startTime,
@@ -618,8 +177,15 @@ class BookingModel {
                 securityDeposit: data.securityDeposit !== undefined && data.securityDeposit !== '' ? Number(data.securityDeposit) : 0,
                 baseDiscount: Number(data.discount) || 0,
                 discountsList: [],
-                extraChargesList: data.extraCharges > 0 ? [
-                    { id: `CHG-${Math.floor(100 + Math.random() * 900)}`, category: 'Initial Extra Charge', amount: Number(data.extraCharges), remarks: 'Added during booking creation', addedBy: data.createdBy || 'Admin', date: data.bookingDate }
+                extraChargesList: Number(data.extraCharges) > 0 ? [
+                    {
+                        id: `CHG-${Math.floor(100 + Math.random() * 900)}`,
+                        category: 'Initial Extra Charge',
+                        amount: Number(data.extraCharges),
+                        remarks: 'Added during booking creation',
+                        addedBy: data.createdBy || 'Admin',
+                        date: data.bookingDate
+                    }
                 ] : []
             },
             timeline: []
@@ -638,6 +204,12 @@ class BookingModel {
         });
 
         bookingsStore.push(newBooking);
+
+        if (isConnected()) {
+            Booking.create(newBooking).catch(err => {
+                console.warn('⚠️  [MongoDB] Failed to persist booking:', err.message);
+            });
+        }
 
         AuditModel.log({
             module: 'Booking',
@@ -660,10 +232,9 @@ class BookingModel {
     }
 
     static update(id, data) {
-        const index = bookingsStore.findIndex(b => b.id === id);
-        if (index === -1) return null;
+        let oldBooking = this.findById(id);
+        if (!oldBooking) return null;
 
-        const oldBooking = bookingsStore[index];
         const oldContract = oldBooking.contract || {};
 
         const updatedContract = {
@@ -674,7 +245,6 @@ class BookingModel {
             extraChargesList: oldContract.extraChargesList ? [...oldContract.extraChargesList] : []
         };
 
-        // Update Initial Extra Charges in extraChargesList if provided
         let oldInitialExtraAmt = 0;
         const initialChargeIndex = updatedContract.extraChargesList.findIndex(c => c.category === 'Initial Extra Charge');
         if (initialChargeIndex !== -1) {
@@ -719,9 +289,7 @@ class BookingModel {
             contract: updatedContract
         };
 
-        // Calculate Git-Style Field-by-Field Diff (ONLY FOR ACTUAL CHANGES)
         const changes = [];
-
         if (data.customerName !== undefined && data.customerName.trim() !== (oldBooking.customerName || '').trim()) {
             changes.push({ field: 'Customer Name', oldVal: oldBooking.customerName || '(Empty)', newVal: data.customerName.trim() });
         }
@@ -767,11 +335,19 @@ class BookingModel {
             changes.push({ field: 'Initial Extra Charges', oldVal: `₹${oldInitialExtraAmt.toLocaleString('en-IN')}`, newVal: `₹${newInitialExtraAmt.toLocaleString('en-IN')}` });
         }
 
-        bookingsStore[index] = updatedBooking;
+        const memIdx = bookingsStore.findIndex(b => b.id === id);
+        if (memIdx !== -1) {
+            bookingsStore[memIdx] = updatedBooking;
+        }
+
+        if (isConnected()) {
+            Booking.updateOne({ id }, { $set: updatedBooking }).catch(err => {
+                console.warn('⚠️  [MongoDB] Failed to update booking:', err.message);
+            });
+        }
 
         const user = data.updatedBy || 'Admin';
 
-        // ONLY log audit record and timeline event if fields were actually modified
         if (changes.length > 0) {
             const actionTitle = changes.length === 1 ? `Updated ${changes[0].field}` : `Updated ${changes.length} Field(s)`;
 
@@ -812,11 +388,15 @@ class BookingModel {
             date: new Date().toISOString().split('T')[0]
         };
 
-        if (!booking.contract.extraChargesList) {
-            booking.contract.extraChargesList = [];
-        }
-
+        if (!booking.contract) booking.contract = {};
+        if (!booking.contract.extraChargesList) booking.contract.extraChargesList = [];
         booking.contract.extraChargesList.push(chargeItem);
+
+        if (isConnected()) {
+            Booking.updateOne({ id }, { $push: { 'contract.extraChargesList': chargeItem } }).catch(err => {
+                console.warn('⚠️  [MongoDB] Failed to add extra charge:', err.message);
+            });
+        }
 
         this.addTimelineEvent(id, {
             title: `Extra Charge Added: ${chargeItem.category}`,
@@ -856,11 +436,15 @@ class BookingModel {
             date: new Date().toISOString().split('T')[0]
         };
 
-        if (!booking.contract.discountsList) {
-            booking.contract.discountsList = [];
-        }
-
+        if (!booking.contract) booking.contract = {};
+        if (!booking.contract.discountsList) booking.contract.discountsList = [];
         booking.contract.discountsList.push(discountItem);
+
+        if (isConnected()) {
+            Booking.updateOne({ id }, { $push: { 'contract.discountsList': discountItem } }).catch(err => {
+                console.warn('⚠️  [MongoDB] Failed to add discount:', err.message);
+            });
+        }
 
         this.addTimelineEvent(id, {
             title: `Discount Approved: ₹${amt.toLocaleString()}`,
@@ -898,9 +482,15 @@ class BookingModel {
         const chargeItem = booking.contract.extraChargesList[idx];
         booking.contract.extraChargesList.splice(idx, 1);
 
+        if (isConnected()) {
+            Booking.updateOne({ id }, { $pull: { 'contract.extraChargesList': { id: chargeId } } }).catch(err => {
+                console.warn('⚠️  [MongoDB] Failed to revert extra charge:', err.message);
+            });
+        }
+
         this.addTimelineEvent(id, {
             title: `Extra Charge Reverted: ${chargeItem.category}`,
-            description: `Reverted charge of ₹${chargeItem.amount.toLocaleString()} (${chargeItem.remarks || 'No remarks'})`,
+            description: `Reverted charge of ₹${chargeItem.amount.toLocaleString()} by ${user}`,
             category: 'Financial',
             user
         });
@@ -910,10 +500,10 @@ class BookingModel {
             action: 'Extra Charge Reverted',
             targetId: id,
             changes: [
-                { field: `Extra Charge (${chargeItem.category})`, oldVal: `+₹${chargeItem.amount.toLocaleString()}`, newVal: 'Reverted (₹0)' }
+                { field: `Extra Charge (${chargeItem.category})`, oldVal: `+₹${chargeItem.amount.toLocaleString()}`, newVal: '₹0 (Reverted)' }
             ],
             oldValue: `${chargeItem.category}: +₹${chargeItem.amount}`,
-            newValue: 'Reverted (₹0)',
+            newValue: `${chargeItem.category}: Reverted to ₹0`,
             user
         });
 
@@ -924,32 +514,25 @@ class BookingModel {
         const booking = this.findById(id);
         if (!booking) throw new Error('Booking not found.');
 
-        if (!booking.contract) throw new Error('Contract record not found.');
-
-        let discountItem = null;
-        if (discountId === 'BASE_DISCOUNT') {
-            if (booking.contract.baseDiscount > 0) {
-                discountItem = {
-                    id: 'BASE_DISCOUNT',
-                    amount: Number(booking.contract.baseDiscount),
-                    reason: 'Initial Base Discount',
-                    date: new Date().toISOString().split('T')[0]
-                };
-                booking.contract.baseDiscount = 0;
-            }
-        } else if (booking.contract.discountsList) {
-            const idx = booking.contract.discountsList.findIndex(d => d.id === discountId);
-            if (idx !== -1) {
-                discountItem = booking.contract.discountsList[idx];
-                booking.contract.discountsList.splice(idx, 1);
-            }
+        if (!booking.contract || !booking.contract.discountsList) {
+            throw new Error('Discount record not found.');
         }
 
-        if (!discountItem) throw new Error('Discount record not found.');
+        const idx = booking.contract.discountsList.findIndex(d => d.id === discountId);
+        if (idx === -1) throw new Error('Discount record not found.');
+
+        const discountItem = booking.contract.discountsList[idx];
+        booking.contract.discountsList.splice(idx, 1);
+
+        if (isConnected()) {
+            Booking.updateOne({ id }, { $pull: { 'contract.discountsList': { id: discountId } } }).catch(err => {
+                console.warn('⚠️  [MongoDB] Failed to revert discount:', err.message);
+            });
+        }
 
         this.addTimelineEvent(id, {
             title: `Discount Reverted: ₹${discountItem.amount.toLocaleString()}`,
-            description: `Reverted discount of ₹${discountItem.amount.toLocaleString()} (Reason: ${discountItem.reason})`,
+            description: `Discount of ₹${discountItem.amount.toLocaleString()} reverted by ${user}`,
             category: 'Financial',
             user
         });
@@ -959,50 +542,74 @@ class BookingModel {
             action: 'Discount Reverted',
             targetId: id,
             changes: [
-                { field: 'Approved Discount', oldVal: `-₹${discountItem.amount.toLocaleString()}`, newVal: 'Reverted (₹0)' }
+                { field: 'Discount', oldVal: `-₹${discountItem.amount.toLocaleString()}`, newVal: '₹0 (Reverted)' }
             ],
             oldValue: `Discount: -₹${discountItem.amount}`,
-            newValue: 'Reverted (₹0)',
+            newValue: 'Discount: Reverted to ₹0',
             user
         });
 
         return discountItem;
     }
 
-    static unarchive(id, user = 'Admin') {
+    static archive(id, user = 'Admin') {
         const booking = this.findById(id);
-        if (!booking) throw new Error('Booking not found.');
-
-        if (booking.status !== 'Archived') {
-            throw new Error('Booking is not currently archived.');
-        }
-
-        // Validate time slot conflict before restoring to Confirmed
-        const validation = this.validateSlotDetails({
-            hall: booking.hall,
-            bookingDate: booking.bookingDate,
-            startTime: booking.startTime,
-            endTime: booking.endTime,
-            status: 'Confirmed',
-            excludeId: booking.id
-        });
-
-        if (!validation.isValid) {
-            throw new Error(`Cannot unarchive booking: ${validation.message}`);
-        }
+        if (!booking) return null;
 
         const oldStatus = booking.status;
-        booking.status = 'Confirmed';
+        booking.status = 'Archived';
+
+        if (isConnected()) {
+            Booking.updateOne({ id }, { $set: { status: 'Archived' } }).catch(() => {});
+        }
 
         this.addTimelineEvent(id, {
-            title: 'Booking Unarchived',
-            description: 'Booking restored from archive to Confirmed state. Customer info and contract details remain editable.',
+            title: 'Booking Archived',
+            description: `Booking moved to Archive by ${user}. Hall time slot released for other reservations.`,
             category: 'Lifecycle',
             user
         });
 
         AuditModel.log({
-            module: 'Booking',
+            module: 'Booking Lifecycle',
+            action: 'Booking Archived',
+            targetId: id,
+            changes: [
+                { field: 'Booking Status', oldVal: oldStatus, newVal: 'Archived' }
+            ],
+            oldValue: `Status: ${oldStatus}`,
+            newValue: 'Status: Archived',
+            user
+        });
+
+        return booking;
+    }
+
+    static unarchive(id, user = 'Admin') {
+        const booking = this.findById(id);
+        if (!booking) throw new Error('Booking not found.');
+
+        const conflict = this.checkConflict(booking.hall, booking.bookingDate, booking.startTime, booking.endTime, id, 'Confirmed');
+        if (conflict) {
+            throw new Error(`Cannot restore booking: Time slot (${booking.startTime} - ${booking.endTime}) on ${booking.bookingDate} for ${booking.hall} is currently occupied.`);
+        }
+
+        const oldStatus = booking.status;
+        booking.status = 'Confirmed';
+
+        if (isConnected()) {
+            Booking.updateOne({ id }, { $set: { status: 'Confirmed' } }).catch(() => {});
+        }
+
+        this.addTimelineEvent(id, {
+            title: 'Booking Restored from Archive',
+            description: `Booking unarchived by ${user}. Status restored to Confirmed.`,
+            category: 'Lifecycle',
+            user
+        });
+
+        AuditModel.log({
+            module: 'Booking Lifecycle',
             action: 'Booking Unarchived',
             targetId: id,
             changes: [
@@ -1016,35 +623,6 @@ class BookingModel {
         return booking;
     }
 
-    static archive(id, user = 'Admin') {
-        const booking = this.findById(id);
-        if (!booking) return null;
-
-        const oldStatus = booking.status;
-        booking.status = 'Archived';
-
-        this.addTimelineEvent(id, {
-            title: 'Booking Archived',
-            description: 'Booking moved to archive. Slot freed for future bookings.',
-            category: 'Lifecycle',
-            user
-        });
-
-        AuditModel.log({
-            module: 'Booking',
-            action: 'Booking Archived',
-            targetId: id,
-            changes: [
-                { field: 'Booking Status', oldVal: oldStatus, newVal: 'Archived (Slot Freed)' }
-            ],
-            oldValue: `Status: ${oldStatus}`,
-            newValue: 'Status: Archived',
-            user
-        });
-
-        return booking;
-    }
-
     static cancel(id, user = 'Admin') {
         const booking = this.findById(id);
         if (!booking) return null;
@@ -1052,19 +630,23 @@ class BookingModel {
         const oldStatus = booking.status;
         booking.status = 'Cancelled';
 
+        if (isConnected()) {
+            Booking.updateOne({ id }, { $set: { status: 'Cancelled' } }).catch(() => {});
+        }
+
         this.addTimelineEvent(id, {
             title: 'Booking Cancelled',
-            description: 'Booking cancelled. Slot freed for future bookings.',
+            description: `Booking cancelled by ${user}. Time slot released.`,
             category: 'Lifecycle',
             user
         });
 
         AuditModel.log({
-            module: 'Booking',
+            module: 'Booking Lifecycle',
             action: 'Booking Cancelled',
             targetId: id,
             changes: [
-                { field: 'Booking Status', oldVal: oldStatus, newVal: 'Cancelled (Slot Freed)' }
+                { field: 'Booking Status', oldVal: oldStatus, newVal: 'Cancelled' }
             ],
             oldValue: `Status: ${oldStatus}`,
             newValue: 'Status: Cancelled',
@@ -1078,37 +660,28 @@ class BookingModel {
         const booking = this.findById(id);
         if (!booking) throw new Error('Booking not found.');
 
-        if (booking.status !== 'Cancelled') {
-            throw new Error('Booking is not currently cancelled.');
-        }
-
-        // Validate time slot conflict before restoring to Confirmed
-        const validation = this.validateSlotDetails({
-            hall: booking.hall,
-            bookingDate: booking.bookingDate,
-            startTime: booking.startTime,
-            endTime: booking.endTime,
-            status: 'Confirmed',
-            excludeId: booking.id
-        });
-
-        if (!validation.isValid) {
-            throw new Error(`Cannot restore cancelled booking: ${validation.message}`);
+        const conflict = this.checkConflict(booking.hall, booking.bookingDate, booking.startTime, booking.endTime, id, 'Confirmed');
+        if (conflict) {
+            throw new Error(`Cannot uncancel booking: Time slot (${booking.startTime} - ${booking.endTime}) on ${booking.bookingDate} for ${booking.hall} is currently occupied.`);
         }
 
         const oldStatus = booking.status;
         booking.status = 'Confirmed';
 
+        if (isConnected()) {
+            Booking.updateOne({ id }, { $set: { status: 'Confirmed' } }).catch(() => {});
+        }
+
         this.addTimelineEvent(id, {
-            title: 'Booking Cancellation Reverted',
-            description: 'Booking restored from Cancelled to Confirmed state. Time slot re-reserved.',
+            title: 'Cancellation Reverted',
+            description: `Booking restored from cancelled state by ${user}.`,
             category: 'Lifecycle',
             user
         });
 
         AuditModel.log({
-            module: 'Booking',
-            action: 'Booking Cancellation Reverted',
+            module: 'Booking Lifecycle',
+            action: 'Cancellation Reverted',
             targetId: id,
             changes: [
                 { field: 'Booking Status', oldVal: oldStatus, newVal: 'Confirmed' }
@@ -1122,21 +695,28 @@ class BookingModel {
     }
 
     static delete(id, hasFinancialRecords = false) {
-        const index = bookingsStore.findIndex(b => b.id === id);
-        if (index === -1) throw new Error('Booking not found.');
-
         if (hasFinancialRecords) {
             throw new Error('This booking contains financial records and cannot be permanently deleted. You can Archive this booking instead.');
         }
 
-        bookingsStore.splice(index, 1);
+        const memIdx = bookingsStore.findIndex(b => b.id === id);
+        if (memIdx !== -1) {
+            bookingsStore.splice(memIdx, 1);
+        }
+
+        if (isConnected()) {
+            Booking.deleteOne({ id }).catch(err => {
+                console.warn('⚠️  [MongoDB] Failed to delete booking:', err.message);
+            });
+        }
 
         AuditModel.log({
             module: 'Booking',
             action: 'Booking Permanently Deleted',
             targetId: id,
-            oldValue: `Booking ID: ${id}`,
-            newValue: null,
+            changes: [],
+            oldValue: `Booking ${id}`,
+            newValue: 'DELETED',
             user: 'Admin'
         });
 
@@ -1144,60 +724,40 @@ class BookingModel {
     }
 
     static getStats() {
-        const today = getFormattedDate(0);
-        
-        const totalBookings = bookingsStore.length;
-        const activeBookings = bookingsStore.filter(b => b.status === 'Confirmed' || b.status === 'Booked');
-        const todayBookings = bookingsStore.filter(b => b.bookingDate === today && (b.status === 'Confirmed' || b.status === 'Booked'));
-        const upcomingBookings = bookingsStore.filter(b => b.bookingDate > today && (b.status === 'Confirmed' || b.status === 'Booked'));
+        const allBookings = this.findAll();
+        const today = new Date().toISOString().split('T')[0];
+
+        const todayBookings = allBookings.filter(b => b.bookingDate === today && b.status !== 'Cancelled' && b.status !== 'Archived');
+        const upcomingBookings = allBookings.filter(b => b.bookingDate > today && b.status !== 'Cancelled' && b.status !== 'Archived');
+        const activeBookings = allBookings.filter(b => b.status === 'Confirmed' || b.status === 'Booked');
 
         const isHall1OccupiedToday = todayBookings.some(b => b.hall === 'Hall 1');
         const isHall2OccupiedToday = todayBookings.some(b => b.hall === 'Hall 2');
 
         return {
-            totalBookings,
-            activeCount: activeBookings.length,
-            draftCount: bookingsStore.filter(b => b.status === 'Draft').length,
-            cancelledCount: bookingsStore.filter(b => b.status === 'Cancelled').length,
-            completedCount: bookingsStore.filter(b => b.status === 'Completed').length,
-            archivedCount: bookingsStore.filter(b => b.status === 'Archived').length,
-            todayCount: todayBookings.length,
-            upcomingCount: upcomingBookings.length,
-            hall1Status: isHall1OccupiedToday ? 'Booked Today' : 'Ready for Booking',
-            hall2Status: isHall2OccupiedToday ? 'Booked Today' : 'Ready for Booking',
-            recentActivities: bookingsStore.slice(-5).reverse()
+            totalBookings: allBookings.length,
+            activeBookings: activeBookings.length,
+            todayEvents: todayBookings.length,
+            upcomingEvents: upcomingBookings.length,
+            hall1Status: isHall1OccupiedToday ? 'Occupied' : 'Available',
+            hall2Status: isHall2OccupiedToday ? 'Occupied' : 'Available'
         };
     }
 
-    /**
-     * Yearly Statistics & Multi-Year Aggregation Engine
-     */
     static getYearlyStats(filterYear = null) {
         const PaymentModel = require('./paymentModel');
-        const allBookings = bookingsStore;
-        
-        // Find distinct years from all bookings
-        const yearsSet = new Set();
-        allBookings.forEach(b => {
-            if (b.bookingDate) {
-                const yr = b.bookingDate.split('-')[0];
-                if (yr && yr.length === 4) yearsSet.add(yr);
-            }
-        });
+        const allBookings = this.findAll();
 
-        // Ensure current year is always represented
-        const currentYearStr = String(new Date().getFullYear());
-        yearsSet.add(currentYearStr);
+        const baseYears = ['2023', '2024', '2025', '2026', '2027'];
+        const bookingYears = allBookings.map(b => (b.bookingDate || '').split('-')[0]).filter(Boolean);
+        const availableYears = Array.from(new Set([...baseYears, ...bookingYears])).sort();
 
-        const availableYears = Array.from(yearsSet).sort((a, b) => b.localeCompare(a)); // e.g. 2027, 2026, 2025, 2024
-
-        // Initialize yearly buckets
         const yearlyMap = {};
         availableYears.forEach(year => {
             yearlyMap[year] = {
                 year,
                 totalEvents: 0,
-                activeEvents: 0, // Confirmed + Booked
+                activeEvents: 0,
                 completedEvents: 0,
                 draftEvents: 0,
                 cancelledEvents: 0,
@@ -1224,7 +784,6 @@ class BookingModel {
             };
         });
 
-        // Populate yearly data from bookings
         allBookings.forEach(booking => {
             const dateParts = (booking.bookingDate || '').split('-');
             const year = dateParts[0];
@@ -1253,7 +812,6 @@ class BookingModel {
                 yData.pendingDues += remainingRent;
             }
 
-            // Hall Breakdown
             const hallName = booking.hall || 'Other';
             if (!yData.hallBreakdown[hallName]) {
                 yData.hallBreakdown[hallName] = {
@@ -1281,7 +839,6 @@ class BookingModel {
                 hStats.pendingDues += remainingRent;
             }
 
-            // Monthly breakdown (1-12)
             if (monthIdx >= 1 && monthIdx <= 12) {
                 const mData = yData.monthlyDistribution[monthIdx - 1];
                 mData.totalEvents += 1;
@@ -1293,14 +850,12 @@ class BookingModel {
                 }
             }
 
-            // Push enriched booking item
             yData.events.push({
                 ...booking,
                 financial: fin
             });
         });
 
-        // Compute percentages for hall breakdowns
         Object.keys(yearlyMap).forEach(year => {
             const yData = yearlyMap[year];
             const total = yData.totalEvents || 1;
@@ -1312,7 +867,6 @@ class BookingModel {
 
         const yearlySummaries = availableYears.map(yr => yearlyMap[yr]);
 
-        // Grand all-time totals
         let grandTotalEvents = 0;
         let grandTotalRevenue = 0;
         let grandTotalPendingDues = 0;
@@ -1338,8 +892,8 @@ class BookingModel {
             });
         });
 
-        const selectedYearData = (filterYear && filterYear !== 'All' && yearlyMap[filterYear]) 
-            ? yearlyMap[filterYear] 
+        const selectedYearData = (filterYear && filterYear !== 'All' && yearlyMap[filterYear])
+            ? yearlyMap[filterYear]
             : null;
 
         return {
@@ -1357,23 +911,14 @@ class BookingModel {
         };
     }
 
-    /**
-     * Day Slot Statistics & Analytics Engine
-     * Groups events on targetDate into:
-     * - Morning:   06:00 to 11:59 (360 to < 720 mins)
-     * - Afternoon: 12:00 to 15:59 (720 to < 960 mins)
-     * - Evening:   16:00 to 19:59 (960 to < 1200 mins)
-     * - Night:     20:00 to 05:59 (>= 1200 mins or < 360 mins, wraps midnight)
-     */
     static getDaySlotStats(targetDate = null) {
         const PaymentModel = require('./paymentModel');
         const defaultDate = getFormattedDate(0);
         const selectedDate = (targetDate && typeof targetDate === 'string' && targetDate.trim()) ? targetDate.trim() : defaultDate;
 
-        const allBookings = bookingsStore;
+        const allBookings = this.findAll();
         const dateBookings = allBookings.filter(b => b.bookingDate === selectedDate);
 
-        // Helper to determine slot key from time string "HH:MM"
         const getSlotKey = (timeStr) => {
             if (!timeStr) return 'morning';
             const parts = timeStr.split(':').map(Number);
@@ -1529,7 +1074,6 @@ class BookingModel {
                 hallBreakdown[hall].revenue += netRentPaid;
             }
 
-            // Push enriched booking item
             const enriched = {
                 ...booking,
                 slotKey,
@@ -1540,7 +1084,6 @@ class BookingModel {
             slot.events.push(enriched);
         });
 
-        // Sort events in each slot by startTime
         Object.values(slots).forEach(slot => {
             slot.events.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
         });
