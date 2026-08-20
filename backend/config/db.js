@@ -35,9 +35,13 @@ const connectDB = async () => {
             const BookingModel = require('../models/bookingModel');
             const PaymentModel = require('../models/paymentModel');
             const AuditModel = require('../models/auditModel');
+            const UserModel = require('../models/userModel');
+            const HallModel = require('../models/hallModel');
+            if (HallModel && HallModel.syncFromDB) await HallModel.syncFromDB();
             if (BookingModel && BookingModel.syncFromDB) await BookingModel.syncFromDB();
             if (PaymentModel && PaymentModel.syncFromDB) await PaymentModel.syncFromDB();
             if (AuditModel && AuditModel.syncFromDB) await AuditModel.syncFromDB();
+            if (UserModel && UserModel.syncFromDB) await UserModel.syncFromDB();
         } catch (syncErr) {
             console.warn('⚠️  [MongoDB] Initial sync notice:', syncErr.message);
         }

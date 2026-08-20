@@ -22,7 +22,20 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Mount API routes
 app.use('/api', bookingRoutes);
 
-// Fallback to index.html for single-page application routing
+// Redirect deprecated faculty routes to staff
+app.get('/faculty*', (req, res) => {
+    res.redirect('/staff');
+});
+
+// Single Page Application routing (Admin, Staff, and Fallback)
+app.get('/admin*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/staff*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });

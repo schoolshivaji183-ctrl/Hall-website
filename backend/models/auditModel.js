@@ -43,7 +43,8 @@ class AuditModel {
         const now = new Date();
         const dateStr = now.toISOString().split('T')[0];
         const timeStr = now.toTimeString().split(' ')[0];
-        const logId = `AUDIT-${auditCounter++}`;
+        const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+        const logId = `AUDIT-${Date.now().toString().slice(-6)}-${randomSuffix}`;
 
         const logEntry = {
             id: logId,

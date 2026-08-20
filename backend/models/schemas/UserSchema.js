@@ -1,11 +1,12 @@
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
-    username: { type: String, required: true, unique: true, trim: true, index: true },
-    name: { type: String, required: true, trim: true },
+    username: { type: String, required: true, unique: true, trim: true, lowercase: true, index: true },
+    password: { type: String, required: true },
+    name: { type: String, trim: true, default: '' },
     email: { type: String, default: '', trim: true },
-    role: { type: String, enum: ['Admin', 'Faculty', 'Staff'], default: 'Admin' },
-    department: { type: String, default: 'Administration' },
+    role: { type: String, enum: ['Admin', 'Staff'], required: true, default: 'Staff' },
+    department: { type: String, default: 'General' },
     isActive: { type: Boolean, default: true }
 }, {
     timestamps: true,
@@ -18,3 +19,4 @@ module.exports = {
     userSchema,
     User
 };
+

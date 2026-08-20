@@ -36,6 +36,51 @@ const timelineEventSubSchema = new mongoose.Schema({
     user: { type: String, default: 'Admin' }
 }, { _id: false });
 
+const requirementItemSubSchema = new mongoose.Schema({
+    needed: { type: Boolean, default: true },
+    quantity: { type: Number, default: 0 },
+    type: { type: String, default: '' },
+    prepared: { type: Boolean, default: false },
+    notes: { type: String, default: '' }
+}, { _id: false });
+
+const requirementsSubSchema = new mongoose.Schema({
+    chairs: {
+        needed: { type: Boolean, default: true },
+        quantity: { type: Number, default: 100 },
+        prepared: { type: Boolean, default: false },
+        notes: { type: String, default: 'Standard hall seating arranged' }
+    },
+    sound: {
+        needed: { type: Boolean, default: true },
+        type: { type: String, default: 'Podium Mic & Audio Setup' },
+        prepared: { type: Boolean, default: false },
+        notes: { type: String, default: 'Mic & speaker sound check' }
+    },
+    lighting: {
+        needed: { type: Boolean, default: true },
+        type: { type: String, default: 'Stage & Ambient Lighting' },
+        prepared: { type: Boolean, default: false },
+        notes: { type: String, default: 'Hall main & stage lights' }
+    },
+    catering: {
+        needed: { type: Boolean, default: false },
+        type: { type: String, default: 'None' },
+        prepared: { type: Boolean, default: false },
+        notes: { type: String, default: '' }
+    },
+    status: {
+        type: String,
+        enum: ['Pending', 'In Progress', 'Ready', 'Completed'],
+        default: 'Pending'
+    },
+    acknowledgedBy: { type: String, default: '' },
+    acknowledgedAt: { type: String, default: '' },
+    preparedBy: { type: String, default: '' },
+    preparedAt: { type: String, default: '' },
+    facultyNotes: { type: String, default: '' }
+}, { _id: false });
+
 const bookingSchema = new mongoose.Schema({
     id: { type: String, required: true, unique: true, index: true },
     customerName: { type: String, required: true, trim: true },
@@ -51,6 +96,7 @@ const bookingSchema = new mongoose.Schema({
         default: 'Confirmed'
     },
     notes: { type: String, default: '' },
+    requirements: { type: requirementsSubSchema, default: () => ({}) },
     contract: { type: contractSubSchema, default: () => ({}) },
     timeline: [timelineEventSubSchema]
 }, {

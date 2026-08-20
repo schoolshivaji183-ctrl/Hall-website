@@ -558,20 +558,28 @@ class BookingController {
             const allDateBookings = await BookingModel.findAll({ date: targetDate });
 
             const activeBookings = allDateBookings.filter(b => b.status !== 'Cancelled' && b.status !== 'Archived');
-            const hall1Bookings = activeBookings.filter(b => b.hall === 'Hall 1');
-            const hall2Bookings = activeBookings.filter(b => b.hall === 'Hall 2');
+            const smallHallBookings = activeBookings.filter(b => b.hall === 'Small Hall' || b.hall === 'Hall 1');
+            const bigHallBookings = activeBookings.filter(b => b.hall === 'Big Hall' || b.hall === 'Hall 2');
 
             return res.status(200).json({
                 success: true,
                 date: targetDate,
                 data: {
+                    "Small Hall": {
+                        totalBookings: smallHallBookings.length,
+                        slots: smallHallBookings
+                    },
+                    "Big Hall": {
+                        totalBookings: bigHallBookings.length,
+                        slots: bigHallBookings
+                    },
                     "Hall 1": {
-                        totalBookings: hall1Bookings.length,
-                        slots: hall1Bookings
+                        totalBookings: smallHallBookings.length,
+                        slots: smallHallBookings
                     },
                     "Hall 2": {
-                        totalBookings: hall2Bookings.length,
-                        slots: hall2Bookings
+                        totalBookings: bigHallBookings.length,
+                        slots: bigHallBookings
                     }
                 }
             });
@@ -622,6 +630,49 @@ class BookingController {
                 success: false,
                 message: 'Error fetching audit logs.',
                 error: error.message
+            });
+        }
+    }
+
+    /**
+     * GET /api/halls
+     */
+    static async getAllHalls(req, res) {
+        try {
+            const HallModel = require('../models/hallModel');
+            const halls = await HallModel.findAll();
+            return res.status(200).json({
+                success: true,
+                count: halls.length,
+                data: halls
+            });
+        } catch (error) {
+            return res.status(500).json({
+                success: false,
+                message: 'Error fetching halls.',
+                error: error.message
+            });
+        }
+    }
+
+    /**
+     * PATCH /api/halls/:id/status
+     */
+    static async updateHallStatus(req, res) {
+        try {
+            const { id } = req.params;
+            const { status } = req.body;
+            const HallModel = require('../models/hallModel');
+            const updated = await HallModel.updateStatus(id, status);
+            return res.status(200).json({
+                success: true,
+                message: `Hall status updated to ${status}.`,
+                data: updated
+            });
+        } catch (error) {
+            return res.status(400).json({
+                success: false,
+                message: error.message || 'Failed to update hall status.'
             });
         }
     }

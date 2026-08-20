@@ -4,9 +4,43 @@
 
 function initApp() {
     // --- Application State ---
-    let currentRole = 'Admin'; // 'Admin' | 'Faculty'
+    let currentRole = 'Admin'; // 'Admin' | 'Staff'
+    let currentUser = null; // Stored user profile from DB authentication
+    let isAdminSession = false; // Flag to indicate if authentic user is Admin
     let currentView = 'dashboard';
     let editBookingId = null;
+
+    const STORAGE_SESSION_KEY = 'hall_auth_session_v2';
+
+    // Helper functions for Session Persistence
+    function getStoredSession() {
+        try {
+            const raw = sessionStorage.getItem(STORAGE_SESSION_KEY);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (parsed && parsed.user && parsed.user.username) {
+                    return parsed;
+                }
+            }
+        } catch(e) {}
+        return null;
+    }
+
+    function saveStoredSession(user, token) {
+        try {
+            sessionStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify({ user, token }));
+        } catch(e) {}
+    }
+
+    function clearStoredSession() {
+        try {
+            sessionStorage.removeItem(STORAGE_SESSION_KEY);
+            sessionStorage.removeItem('hall_user_role');
+            sessionStorage.removeItem('hall_user_profile');
+        } catch(e) {}
+        currentUser = null;
+        isAdminSession = false;
+    }
 
     // Bootstrap Modal Instances
     const bookingModal = new bootstrap.Modal(document.getElementById('bookingModal'));
@@ -19,14 +53,65 @@ function initApp() {
     const voidModal = new bootstrap.Modal(document.getElementById('voidModal'));
     const receiptModal = new bootstrap.Modal(document.getElementById('receiptModal'));
     const yearLedgerModal = new bootstrap.Modal(document.getElementById('yearLedgerModal'));
+    const facultyEventModal = document.getElementById('facultyEventModal') ? new bootstrap.Modal(document.getElementById('facultyEventModal')) : null;
     const liveToast = new bootstrap.Toast(document.getElementById('liveToast'));
 
-    // DOM Elements
+    // DOM Elements - Auth Screen
+    const authView = document.getElementById('auth-view');
+    const appWrapper = document.getElementById('wrapper');
+    const mainLoginForm = document.getElementById('mainLoginForm');
+    const authErrorAlert = document.getElementById('auth-error-alert');
+    const authErrorMessage = document.getElementById('auth-error-message');
+    const authPortalBadge = document.getElementById('auth-portal-badge');
+    const authSwitchPrompt = document.getElementById('auth-switch-prompt');
+    const btnAuthSubmit = document.getElementById('btn-auth-submit');
+    const btnAuthSubmitText = document.getElementById('btn-auth-submit-text');
+    const authSubmitSpinner = document.getElementById('auth-submit-spinner');
+    const btnTogglePassword = document.getElementById('btn-toggle-password');
+    const iconTogglePassword = document.getElementById('icon-toggle-password');
+    const authInputPassword = document.getElementById('auth-input-password');
+    const authInputUsername = document.getElementById('auth-input-username');
+
+    // DOM Elements - App Topbar & Navigation
     const sidebarWrapper = document.getElementById('sidebar-wrapper');
     const menuToggle = document.getElementById('menu-toggle');
-    const roleDropdownLabel = document.getElementById('current-role-label');
+    const currentUserNameEl = document.getElementById('current-user-name');
+    const currentRoleLabel = document.getElementById('current-role-label');
+    const sidebarRoleBadge = document.getElementById('sidebar-role-badge');
+    const routeIndicatorBadge = document.getElementById('route-indicator-badge');
+    const adminNavGroup = document.getElementById('admin-nav-group');
+    const staffNavGroup = document.getElementById('staff-nav-group');
     const facultyBanner = document.getElementById('faculty-notice-banner');
     const navAddBtn = document.getElementById('btn-add-booking-nav');
+    const btnSwitchToStaff = document.getElementById('btn-switch-to-staff');
+    const btnReturnToAdmin = document.getElementById('btn-return-to-admin');
+    const btnLogout = document.getElementById('btn-logout');
+
+    // =========================================================================
+    // AUTOMATIC AUTHENTICATED FETCH WRAPPER
+    // =========================================================================
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = async function (resource, init = {}) {
+        const customInit = { ...init };
+        const headers = customInit.headers ? { ...(customInit.headers instanceof Headers ? Object.fromEntries(customInit.headers.entries()) : customInit.headers) } : {};
+        headers['x-user-role'] = currentRole;
+        if (currentUser && currentUser.username) {
+            headers['x-auth-user'] = currentUser.username;
+        }
+        const session = getStoredSession();
+        if (session && session.token) {
+            headers['Authorization'] = `Bearer ${session.token}`;
+        }
+        customInit.headers = headers;
+
+        const response = await originalFetch(resource, customInit);
+        if (response.status === 401 && !resource.toString().includes('/api/auth/login')) {
+            clearStoredSession();
+            showAuthScreen();
+            showToast('Session expired. Please log in again.');
+        }
+        return response;
+    };
 
     // Default Date Helpers (Local YYYY-MM-DD string)
     const getTodayDateString = () => {
@@ -44,14 +129,82 @@ function initApp() {
     if (document.getElementById('day-slots-date-picker')) {
         document.getElementById('day-slots-date-picker').value = getTodayDateString();
     }
+    if (document.getElementById('fac-date-picker')) {
+        document.getElementById('fac-date-picker').value = getTodayDateString();
+    }
 
     // =========================================================================
-    // 1. NAVIGATION & VIEW SWITCHING
+    // 1. PORTAL ROUTING & AUTHENTICATION GATE
     // =========================================================================
-    menuToggle.addEventListener('click', (e) => {
-        e.preventDefault();
-        sidebarWrapper.classList.toggle('toggled');
-    });
+    function getRequestedPortal() {
+        const currentPath = (window.location.pathname || '').toLowerCase();
+        const currentHash = (window.location.hash || '').toLowerCase();
+        if (currentPath.includes('/staff') || currentPath.includes('/faculty') || currentHash.includes('staff') || currentHash.includes('faculty')) {
+            return 'Staff';
+        }
+        return 'Admin';
+    }
+
+    function showAuthScreen(portal = null) {
+        const targetPortal = portal || getRequestedPortal();
+        if (appWrapper) appWrapper.classList.add('d-none');
+        if (authView) authView.classList.remove('d-none');
+
+        if (authErrorAlert) authErrorAlert.classList.add('d-none');
+        if (authInputPassword) authInputPassword.value = '';
+
+        if (targetPortal === 'Staff') {
+            if (authPortalBadge) {
+                authPortalBadge.innerHTML = '<i class="bi bi-mortarboard me-1"></i>Staff Operations Sign In';
+                authPortalBadge.className = 'badge px-3 py-1.5 rounded-pill shadow-xs bg-success bg-opacity-75 text-white';
+            }
+            if (authSwitchPrompt) {
+                authSwitchPrompt.innerHTML = 'Need Admin Portal? <a href="/admin" class="text-primary text-decoration-none fw-semibold" id="link-switch-portal">Admin Portal Login</a>';
+            }
+            if (window.history && window.history.pushState && !window.location.pathname.includes('/staff')) {
+                window.history.pushState(null, '', '/staff');
+            }
+        } else {
+            if (authPortalBadge) {
+                authPortalBadge.innerHTML = '<i class="bi bi-shield-lock me-1"></i>Admin Portal Sign In';
+                authPortalBadge.className = 'badge px-3 py-1.5 rounded-pill shadow-xs bg-primary bg-opacity-75 text-white';
+            }
+            if (authSwitchPrompt) {
+                authSwitchPrompt.innerHTML = 'Need Staff view? <a href="/staff" class="text-primary text-decoration-none fw-semibold" id="link-switch-portal">Staff Operations Login</a>';
+            }
+            if (window.history && window.history.pushState && !window.location.pathname.includes('/admin')) {
+                window.history.pushState(null, '', '/admin');
+            }
+        }
+
+        // Attach listener for portal switcher link on login card
+        const dynamicSwitchLink = document.getElementById('link-switch-portal');
+        if (dynamicSwitchLink) {
+            dynamicSwitchLink.onclick = (e) => {
+                e.preventDefault();
+                const nextPortal = targetPortal === 'Staff' ? 'Admin' : 'Staff';
+                showAuthScreen(nextPortal);
+            };
+        }
+
+        if (authInputUsername) authInputUsername.focus();
+    }
+
+    function showDashboardApp() {
+        if (authView) authView.classList.add('d-none');
+        if (appWrapper) appWrapper.classList.remove('d-none');
+        applyRolePermissions();
+    }
+
+    // =========================================================================
+    // 2. NAVIGATION & VIEW SWITCHING
+    // =========================================================================
+    if (menuToggle) {
+        menuToggle.addEventListener('click', (e) => {
+            e.preventDefault();
+            sidebarWrapper.classList.toggle('toggled');
+        });
+    }
 
     const navItems = document.querySelectorAll('#sidebar-wrapper .list-group-item');
     navItems.forEach(item => {
@@ -59,13 +212,24 @@ function initApp() {
             e.preventDefault();
             const viewTarget = item.getAttribute('data-view');
             switchView(viewTarget);
-            
-            navItems.forEach(i => i.classList.remove('active'));
-            item.classList.add('active');
         });
     });
 
     function switchView(viewName) {
+        // Enforce role-based access restrictions on views
+        if (currentRole === 'Staff') {
+            const adminOnlyViews = ['dashboard', 'bookings', 'overall-summary', 'yearly-events', 'day-slots'];
+            if (adminOnlyViews.includes(viewName)) {
+                viewName = 'faculty-today';
+                showToast('Notice: Admin views are restricted for Staff portal.');
+            }
+        } else if (currentRole === 'Admin') {
+            const facultyOnlyViews = ['faculty-today', 'faculty-upcoming'];
+            if (facultyOnlyViews.includes(viewName)) {
+                viewName = 'dashboard';
+            }
+        }
+
         currentView = viewName;
         document.querySelectorAll('.content-view').forEach(el => el.classList.add('d-none'));
 
@@ -73,7 +237,7 @@ function initApp() {
         if (targetEl) targetEl.classList.remove('d-none');
 
         // Sync sidebar active status
-        navItems.forEach(i => {
+        document.querySelectorAll('#sidebar-wrapper .list-group-item').forEach(i => {
             if (i.getAttribute('data-view') === viewName) {
                 i.classList.add('active');
             } else {
@@ -89,11 +253,14 @@ function initApp() {
             'yearly-events': 'Yearly Events Analytics & Trends',
             'day-slots': 'Day Slot Events Analysis',
             'availability': 'Hall Schedule Availability',
-            'upcoming': 'Upcoming Events Schedule'
+            'upcoming': 'Upcoming Events Schedule',
+            'faculty-today': "Today's Event Tasks & Requirements",
+            'faculty-upcoming': 'Upcoming Events & Task Preparation'
         };
-        document.getElementById('page-title').textContent = titleMap[viewName] || 'Dashboard';
+        const titleEl = document.getElementById('page-title');
+        if (titleEl) titleEl.textContent = titleMap[viewName] || 'Dashboard';
 
-        // Each view owns its refresh. Opening a tab always reads current server data.
+        // Load data for active view
         if (viewName === 'dashboard') {
             refreshDashboard();
         } else if (viewName === 'bookings') {
@@ -108,6 +275,10 @@ function initApp() {
             loadHallAvailability();
         } else if (viewName === 'upcoming') {
             loadUpcomingViewEvents();
+        } else if (viewName === 'faculty-today') {
+            loadFacultyTodayView();
+        } else if (viewName === 'faculty-upcoming') {
+            loadFacultyUpcomingView();
         }
     }
 
@@ -126,46 +297,243 @@ function initApp() {
             loadHallAvailability();
         } else if (currentView === 'upcoming') {
             loadUpcomingViewEvents();
+        } else if (currentView === 'faculty-today') {
+            loadFacultyTodayView();
+        } else if (currentView === 'faculty-upcoming') {
+            loadFacultyUpcomingView();
         }
     }
 
     // =========================================================================
-    // 2. ROLE SWITCHING (ADMIN VS FACULTY)
+    // 3. ROLE PERMISSION ENFORCEMENT & VIEW RENDERING
     // =========================================================================
-    document.querySelectorAll('.role-option').forEach(option => {
-        option.addEventListener('click', (e) => {
-            e.preventDefault();
-            document.querySelectorAll('.role-option').forEach(o => o.classList.remove('active'));
-            option.classList.add('active');
+    function applyRolePermissions(targetView = null) {
+        if (!currentUser) {
+            showAuthScreen();
+            return;
+        }
 
-            currentRole = option.getAttribute('data-role');
-            applyRolePermissions();
-            showToast(`Switched to ${currentRole} Mode`);
-        });
-    });
+        if (currentUserNameEl) {
+            currentUserNameEl.textContent = currentUser.name || currentUser.username;
+        }
+        if (currentRoleLabel) {
+            currentRoleLabel.textContent = `Role: ${currentRole}`;
+        }
 
-    function applyRolePermissions() {
-        roleDropdownLabel.textContent = `Role: ${currentRole}`;
+        if (sidebarRoleBadge) {
+            sidebarRoleBadge.textContent = currentRole;
+            sidebarRoleBadge.className = `badge px-2 py-0.5 nav-role-badge ${currentRole === 'Admin' ? 'bg-primary-subtle text-primary border border-primary-subtle' : 'bg-success-subtle text-success border border-success-subtle'}`;
+        }
 
-        if (currentRole === 'Faculty') {
-            facultyBanner.classList.remove('d-none');
-            facultyBanner.classList.add('d-flex');
-            navAddBtn.classList.add('d-none');
+        if (routeIndicatorBadge) {
+            if (currentRole === 'Admin') {
+                routeIndicatorBadge.innerHTML = '<i class="bi bi-shield-lock me-1"></i>/admin';
+                routeIndicatorBadge.className = 'badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1 small fw-semibold';
+            } else {
+                routeIndicatorBadge.innerHTML = '<i class="bi bi-mortarboard me-1"></i>/staff';
+                routeIndicatorBadge.className = 'badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1 small fw-semibold';
+            }
+        }
+
+        if (currentRole === 'Staff') {
+            if (adminNavGroup) adminNavGroup.classList.add('d-none');
+            if (staffNavGroup) staffNavGroup.classList.remove('d-none');
+            if (facultyBanner) {
+                facultyBanner.classList.remove('d-none');
+                facultyBanner.classList.add('d-flex');
+            }
+            if (navAddBtn) navAddBtn.classList.add('d-none');
+
+            // Admin inspection controls
+            if (isAdminSession) {
+                if (btnReturnToAdmin) {
+                    btnReturnToAdmin.classList.remove('d-none');
+                    btnReturnToAdmin.classList.add('d-flex');
+                }
+                if (btnSwitchToStaff) btnSwitchToStaff.classList.add('d-none');
+            } else {
+                if (btnReturnToAdmin) btnReturnToAdmin.classList.add('d-none');
+                if (btnSwitchToStaff) btnSwitchToStaff.classList.add('d-none');
+            }
+
+            if (window.history && window.history.pushState) {
+                window.history.pushState(null, '', '/staff');
+            }
+
+            const adminViews = ['dashboard', 'bookings', 'overall-summary', 'yearly-events', 'day-slots'];
+            if (adminViews.includes(currentView) || !currentView) {
+                switchView(targetView || 'faculty-today');
+            } else {
+                switchView(targetView || currentView);
+            }
         } else {
-            facultyBanner.classList.add('d-none');
-            facultyBanner.classList.remove('d-flex');
-            navAddBtn.classList.remove('d-none');
-        }
+            // Admin Mode
+            if (adminNavGroup) adminNavGroup.classList.remove('d-none');
+            if (staffNavGroup) staffNavGroup.classList.add('d-none');
+            if (facultyBanner) {
+                facultyBanner.classList.add('d-none');
+                facultyBanner.classList.remove('d-flex');
+            }
+            if (navAddBtn) navAddBtn.classList.remove('d-none');
 
-        refreshCurrentView();
+            if (isAdminSession) {
+                if (btnSwitchToStaff) {
+                    btnSwitchToStaff.classList.remove('d-none');
+                    btnSwitchToStaff.classList.add('d-flex');
+                }
+                if (btnReturnToAdmin) btnReturnToAdmin.classList.add('d-none');
+            } else {
+                if (btnSwitchToStaff) btnSwitchToStaff.classList.add('d-none');
+                if (btnReturnToAdmin) btnReturnToAdmin.classList.add('d-none');
+            }
+
+            if (window.history && window.history.pushState) {
+                window.history.pushState(null, '', '/admin');
+            }
+
+            const facultyViews = ['faculty-today', 'faculty-upcoming'];
+            if (facultyViews.includes(currentView) || !currentView) {
+                switchView(targetView || 'dashboard');
+            } else {
+                switchView(targetView || currentView);
+            }
+        }
     }
+
+    // =========================================================================
+    // 4. ADMIN TO STAFF VIEW SWITCHING ACTIONS
+    // =========================================================================
+    if (btnSwitchToStaff) {
+        btnSwitchToStaff.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (!isAdminSession) return;
+            currentRole = 'Staff';
+            currentView = 'faculty-today';
+            applyRolePermissions();
+            showToast('Switched to Staff View (Inspection Mode)');
+        });
+    }
+
+    if (btnReturnToAdmin) {
+        btnReturnToAdmin.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (!isAdminSession) return;
+            currentRole = 'Admin';
+            currentView = 'dashboard';
+            applyRolePermissions();
+            showToast('Returned to Admin Portal');
+        });
+    }
+
+    // =========================================================================
+    // 5. AUTHENTICATION & LOGOUT HANDLERS
+    // =========================================================================
+    if (btnLogout) {
+        btnLogout.addEventListener('click', async (e) => {
+            e.preventDefault();
+            try {
+                await fetch('/api/auth/logout', { method: 'POST' });
+            } catch(e) {}
+            clearStoredSession();
+            showAuthScreen();
+            showToast('Logged out successfully.');
+        });
+    }
+
+    if (btnTogglePassword) {
+        btnTogglePassword.addEventListener('click', () => {
+            if (!authInputPassword) return;
+            if (authInputPassword.type === 'password') {
+                authInputPassword.type = 'text';
+                if (iconTogglePassword) iconTogglePassword.className = 'bi bi-eye-slash text-muted';
+            } else {
+                authInputPassword.type = 'password';
+                if (iconTogglePassword) iconTogglePassword.className = 'bi bi-eye text-muted';
+            }
+        });
+    }
+
+    if (mainLoginForm) {
+        mainLoginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (authErrorAlert) authErrorAlert.classList.add('d-none');
+
+            const username = authInputUsername ? authInputUsername.value.trim() : '';
+            const password = authInputPassword ? authInputPassword.value : '';
+
+            if (!username || !password) {
+                if (authErrorAlert && authErrorMessage) {
+                    authErrorMessage.textContent = 'Please enter both username and password.';
+                    authErrorAlert.classList.remove('d-none');
+                }
+                return;
+            }
+
+            if (btnAuthSubmit) btnAuthSubmit.disabled = true;
+            if (btnAuthSubmitText) btnAuthSubmitText.textContent = 'Signing in...';
+            if (authSubmitSpinner) authSubmitSpinner.classList.remove('d-none');
+
+            const targetPortal = getRequestedPortal();
+
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const result = await res.json();
+
+                if (result.success && result.user) {
+                    const user = result.user;
+                    // Enforce portal role compatibility: Staff cannot access Admin portal
+                    if (targetPortal === 'Admin' && user.role !== 'Admin') {
+                        if (authErrorAlert && authErrorMessage) {
+                            authErrorMessage.textContent = 'Access Denied: Staff accounts cannot access the Admin Portal. Please use the Staff Portal.';
+                            authErrorAlert.classList.remove('d-none');
+                        }
+                        return;
+                    }
+
+                    saveStoredSession(user, result.token);
+                    currentUser = user;
+                    isAdminSession = (user.role === 'Admin');
+
+                    if (targetPortal === 'Staff') {
+                        currentRole = 'Staff';
+                        currentView = 'faculty-today';
+                    } else {
+                        currentRole = 'Admin';
+                        currentView = 'dashboard';
+                    }
+
+                    showDashboardApp();
+                    showToast(`Welcome, ${user.name || user.username} (${user.role})`);
+                } else {
+                    if (authErrorAlert && authErrorMessage) {
+                        authErrorMessage.textContent = result.message || 'Invalid username or password.';
+                        authErrorAlert.classList.remove('d-none');
+                    }
+                }
+            } catch(err) {
+                if (authErrorAlert && authErrorMessage) {
+                    authErrorMessage.textContent = 'Unable to connect to login server. Please try again.';
+                    authErrorAlert.classList.remove('d-none');
+                }
+            } finally {
+                if (btnAuthSubmit) btnAuthSubmit.disabled = false;
+                if (btnAuthSubmitText) btnAuthSubmitText.textContent = 'Sign In';
+                if (authSubmitSpinner) authSubmitSpinner.classList.add('d-none');
+            }
+        });
+    }
+
 
     // =========================================================================
     // 3. API SERVICE CALLS & DASHBOARD REFRESH LOGIC
     // =========================================================================
 
     /**
-     * Dedicated Dashboard Data Refresh - Fetches directly from /api/bookings & /api/payments.
+     * Dedicated Dashboard Data Refresh - Fetches directly from /api/bookings, /api/payments & /api/stats.
      * Operates completely independent of cached state from other views.
      */
     function renderDashboardCards(metrics = {}) {
@@ -175,6 +543,8 @@ function initApp() {
             todayEventsCount = 0,
             isHall1BookedToday = false,
             isHall2BookedToday = false,
+            hall1Status = null,
+            hall2Status = null,
             todayCollections = 0,
             pendingRentDues = 0,
             totalRentRevenue = 0,
@@ -187,15 +557,28 @@ function initApp() {
         if (document.getElementById('stat-today-count')) {
             document.getElementById('stat-today-count').textContent = todayEventsCount;
         }
+
+        const formatHallDisplayStatus = (status, isBooked) => {
+            if (status === 'maintenance' || status === 'Under Maintenance') {
+                return { text: 'Under Maintenance', cssClass: 'text-warning' };
+            }
+            if (isBooked || status === 'Occupied' || status === 'Booked Today' || status === 'booked') {
+                return { text: 'Occupied', cssClass: 'text-primary' };
+            }
+            return { text: 'Ready for Booking', cssClass: 'text-success' };
+        };
+
         if (document.getElementById('stat-hall1')) {
             const h1El = document.getElementById('stat-hall1');
-            h1El.textContent = isHall1BookedToday ? 'Booked Today' : 'Ready for Booking';
-            h1El.className = `fw-bold mb-0 text-truncate ${isHall1BookedToday ? 'text-primary' : 'text-success'}`;
+            const h1Info = formatHallDisplayStatus(hall1Status, isHall1BookedToday);
+            h1El.textContent = h1Info.text;
+            h1El.className = `fw-bold mb-0 text-truncate ${h1Info.cssClass}`;
         }
         if (document.getElementById('stat-hall2')) {
             const h2El = document.getElementById('stat-hall2');
-            h2El.textContent = isHall2BookedToday ? 'Booked Today' : 'Ready for Booking';
-            h2El.className = `fw-bold mb-0 text-truncate ${isHall2BookedToday ? 'text-purple' : 'text-success'}`;
+            const h2Info = formatHallDisplayStatus(hall2Status, isHall2BookedToday);
+            h2El.textContent = h2Info.text;
+            h2El.className = `fw-bold mb-0 text-truncate ${h2Info.cssClass === 'text-primary' ? 'text-purple' : h2Info.cssClass}`;
         }
         if (document.getElementById('stat-today-collection')) {
             document.getElementById('stat-today-collection').textContent = `₹${todayCollections.toLocaleString()}`;
@@ -212,7 +595,7 @@ function initApp() {
     }
 
     /**
-     * Dedicated Dashboard Data Refresh - Fetches directly from /api/bookings & /api/payments.
+     * Dedicated Dashboard Data Refresh - Fetches directly from /api/bookings, /api/payments & /api/stats.
      * Operates completely independent of cached state from other views.
      */
     async function loadDashboardData() {
@@ -225,10 +608,12 @@ function initApp() {
         try {
             let bookingsResult = { success: false, data: [] };
             let paymentsResult = { success: false, data: [] };
+            let statsResult = { success: false, data: {} };
 
-            const [bookingsRes, paymentsRes] = await Promise.allSettled([
+            const [bookingsRes, paymentsRes, statsRes] = await Promise.allSettled([
                 fetch('/api/bookings').then(r => r.json()),
-                fetch('/api/payments').then(r => r.json())
+                fetch('/api/payments').then(r => r.json()),
+                fetch('/api/stats').then(r => r.json())
             ]);
 
             if (bookingsRes.status === 'fulfilled' && bookingsRes.value) {
@@ -237,14 +622,13 @@ function initApp() {
             if (paymentsRes.status === 'fulfilled' && paymentsRes.value) {
                 paymentsResult = paymentsRes.value;
             }
+            if (statsRes.status === 'fulfilled' && statsRes.value) {
+                statsResult = statsRes.value;
+            }
 
             const bookingsSucceeded = bookingsResult && bookingsResult.success && Array.isArray(bookingsResult.data);
             const paymentsSucceeded = paymentsResult && paymentsResult.success && Array.isArray(paymentsResult.data);
-
-            if (!bookingsSucceeded && !paymentsSucceeded) {
-                renderDashboardNoData("No data available");
-                return null;
-            }
+            const statsData = (statsResult && statsResult.success && statsResult.data) ? statsResult.data : {};
 
             const bookings = bookingsSucceeded ? bookingsResult.data : [];
             const payments = paymentsSucceeded ? paymentsResult.data : [];
@@ -254,8 +638,8 @@ function initApp() {
             const activeBookings = bookings.filter(b => b.status !== 'Cancelled' && b.status !== 'Archived');
             const todayEvents = bookings.filter(b => b.bookingDate === today && b.status !== 'Cancelled' && b.status !== 'Archived');
 
-            const isHall1BookedToday = todayEvents.some(b => b.hall === 'Hall 1');
-            const isHall2BookedToday = todayEvents.some(b => b.hall === 'Hall 2');
+            const isSmallHallBookedToday = todayEvents.some(b => b.hall === 'Small Hall' || b.hall === 'Hall 1');
+            const isBigHallBookedToday = todayEvents.some(b => b.hall === 'Big Hall' || b.hall === 'Hall 2');
 
             // 2. Compute Financial Metrics directly from /api/bookings & /api/payments
             let pendingRentDues = 0;
@@ -283,8 +667,12 @@ function initApp() {
             const metrics = {
                 totalBookings,
                 todayEventsCount: todayEvents.length,
-                isHall1BookedToday,
-                isHall2BookedToday,
+                isHall1BookedToday: isSmallHallBookedToday,
+                isHall2BookedToday: isBigHallBookedToday,
+                isSmallHallBookedToday,
+                isBigHallBookedToday,
+                hall1Status: statsData.hall1Status || (isSmallHallBookedToday ? 'Occupied' : 'Ready for Booking'),
+                hall2Status: statsData.hall2Status || (isBigHallBookedToday ? 'Occupied' : 'Ready for Booking'),
                 todayCollections,
                 pendingRentDues,
                 totalRentRevenue,
@@ -301,7 +689,7 @@ function initApp() {
 
         } catch (err) {
             console.error("Error loading dashboard data directly from API:", err);
-            renderDashboardNoData("No data available");
+            renderDashboardNoData("No events scheduled for today");
             return null;
         } finally {
             setDashboardRefreshing(false);
@@ -361,18 +749,18 @@ function initApp() {
     }
 
     /**
-     * Clean error/fallback safeguard UI rendering
+     * Clean error/fallback safeguard UI rendering (Never display 'N/A' for available halls)
      */
     function renderDashboardNoData(message = "No data available") {
         if (document.getElementById('stat-total')) document.getElementById('stat-total').textContent = '0';
         if (document.getElementById('stat-today-count')) document.getElementById('stat-today-count').textContent = '0';
         if (document.getElementById('stat-hall1')) {
-            document.getElementById('stat-hall1').textContent = 'N/A';
-            document.getElementById('stat-hall1').className = 'fw-bold mb-0 text-truncate text-muted';
+            document.getElementById('stat-hall1').textContent = 'Ready for Booking';
+            document.getElementById('stat-hall1').className = 'fw-bold mb-0 text-truncate text-success';
         }
         if (document.getElementById('stat-hall2')) {
-            document.getElementById('stat-hall2').textContent = 'N/A';
-            document.getElementById('stat-hall2').className = 'fw-bold mb-0 text-truncate text-muted';
+            document.getElementById('stat-hall2').textContent = 'Ready for Booking';
+            document.getElementById('stat-hall2').className = 'fw-bold mb-0 text-truncate text-success';
         }
         if (document.getElementById('stat-today-collection')) document.getElementById('stat-today-collection').textContent = '₹0';
         if (document.getElementById('stat-pending-payments')) document.getElementById('stat-pending-payments').textContent = '₹0';
@@ -383,8 +771,8 @@ function initApp() {
         if (eventsContainer) {
             eventsContainer.innerHTML = `
                 <div class="text-center py-4 text-muted">
-                    <i class="bi bi-inbox fs-3 text-secondary d-block mb-1"></i>
-                    ${message}
+                    <i class="bi bi-check-circle fs-3 text-success d-block mb-1"></i>
+                    No events scheduled for today. Halls are <span class="badge bg-success-subtle text-success fw-semibold ms-1">Ready for Booking</span>
                 </div>`;
         }
 
@@ -763,7 +1151,7 @@ function initApp() {
 
         bookings.forEach(b => {
             const tr = document.createElement('tr');
-            const isFaculty = currentRole === 'Faculty';
+            const isReadOnly = (currentRole !== 'Admin');
             const isCancelled = b.status === 'Cancelled';
             const isArchived = b.status === 'Archived';
 
@@ -777,7 +1165,7 @@ function initApp() {
                 `<li><a class="dropdown-item text-success btn-uncancel" href="#" data-id="${b.id}"><i class="bi bi-arrow-counterclockwise me-2"></i>Revert Cancellation</a></li>` :
                 `<li><a class="dropdown-item text-warning btn-cancel ${isArchived ? 'disabled' : ''}" href="#" data-id="${b.id}"><i class="bi bi-x-circle me-2"></i>Cancel Booking</a></li>`;
 
-            const actionButtonsHTML = isFaculty ? `<span class="badge bg-light text-secondary border">Read-Only</span>` : `
+            const actionButtonsHTML = isReadOnly ? `<span class="badge bg-light text-secondary border">Read-Only</span>` : `
                 <div class="dropdown d-inline-block">
                     <button class="btn btn-sm btn-light border dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-boundary="viewport">
                         Actions
@@ -812,7 +1200,7 @@ function initApp() {
                 </td>
                 <td>
                     <div class="fw-semibold">${escapeHtml(b.eventName)}</div>
-                    <div class="small text-muted"><span class="hall-pill ${b.hall === 'Hall 1' ? 'hall-1' : 'hall-2'} me-1">${b.hall}</span> ${b.bookingDate}</div>
+                    <div class="small text-muted"><span class="hall-pill ${(b.hall === 'Small Hall' || b.hall === 'Hall 1') ? 'hall-1' : 'hall-2'} me-1">${b.hall}</span> ${b.bookingDate}</div>
                 </td>
                 <td>
                     <div class="small fw-semibold text-dark"><i class="bi bi-clock me-1 text-primary"></i>${b.startTime} - ${b.endTime}</div>
@@ -1078,11 +1466,11 @@ function initApp() {
 
         events.forEach(b => {
             const isCompleted = b.status === 'Completed';
-            const isFaculty = currentRole === 'Faculty';
+            const isReadOnly = (currentRole !== 'Admin');
             const div = document.createElement('div');
             div.className = `timeline-slot d-flex justify-content-between align-items-center ${isCompleted ? 'bg-light text-muted opacity-75 border-secondary' : ''}`;
             
-            const statusControlHTML = renderStatusSelectControl(b.id, b.status, isFaculty);
+            const statusControlHTML = renderStatusSelectControl(b.id, b.status, isReadOnly);
 
             div.innerHTML = `
                 <div>
@@ -1093,7 +1481,7 @@ function initApp() {
                     </div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                    <span class="hall-pill ${b.hall === 'Hall 1' ? 'hall-1' : 'hall-2'}">${b.hall}</span>
+                    <span class="hall-pill ${(b.hall === 'Small Hall' || b.hall === 'Hall 1') ? 'hall-1' : 'hall-2'}">${b.hall}</span>
                     ${statusControlHTML}
                 </div>
             `;
@@ -1138,8 +1526,8 @@ function initApp() {
         const h1Container = document.getElementById('hall1-slots-container');
         const h2Container = document.getElementById('hall2-slots-container');
 
-        const h1Slots = data['Hall 1'].slots;
-        const h2Slots = data['Hall 2'].slots;
+        const h1Slots = (data['Small Hall'] || data['Hall 1'] || {}).slots || [];
+        const h2Slots = (data['Big Hall'] || data['Hall 2'] || {}).slots || [];
 
         document.getElementById('hall1-count-badge').textContent = `${h1Slots.length} Bookings`;
         document.getElementById('hall2-count-badge').textContent = `${h2Slots.length} Bookings`;
@@ -1162,10 +1550,10 @@ function initApp() {
 
         activeSlots.forEach(s => {
             const isCompleted = s.status === 'Completed';
-            const isFaculty = currentRole === 'Faculty';
+            const isReadOnly = (currentRole !== 'Admin');
             const slotDiv = document.createElement('div');
             slotDiv.className = `p-3 rounded-3 border-start border-4 ${isCompleted ? 'bg-light border-secondary text-muted opacity-75' : 'bg-light border-primary'}`;
-            const statusControlHTML = renderStatusSelectControl(s.id, s.status, isFaculty);
+            const statusControlHTML = renderStatusSelectControl(s.id, s.status, isReadOnly);
 
             slotDiv.innerHTML = `
                 <div class="d-flex justify-content-between align-items-center">
@@ -1205,8 +1593,8 @@ function initApp() {
             const col = document.createElement('div');
             col.className = 'col-12 col-md-6 col-lg-4';
             const isCompleted = b.status === 'Completed';
-            const isFaculty = currentRole === 'Faculty';
-            const statusControlHTML = renderStatusSelectControl(b.id, b.status, isFaculty);
+            const isReadOnly = (currentRole !== 'Admin');
+            const statusControlHTML = renderStatusSelectControl(b.id, b.status, isReadOnly);
 
             col.innerHTML = `
                 <div class="card h-100 border-0 shadow-sm rounded-4 p-3 ${isCompleted ? 'bg-light text-muted opacity-75' : ''}">
@@ -3216,10 +3604,10 @@ function initApp() {
             if (hallBreakdownContainer) {
                 const totalBookingsCount = bookings.length || 1;
                 
-                // Identify distinct halls (default to Hall 1 & Hall 2 if present)
+                // Identify distinct halls (default to Small Hall & Big Hall if present)
                 const hallConfig = [
-                    { name: 'Hall 1', subtitle: 'Main Grand Hall', pillClass: 'hall-1', barColor: '#0284c7', badgeBg: 'bg-primary-subtle text-primary' },
-                    { name: 'Hall 2', subtitle: 'Executive Mini Hall', pillClass: 'hall-2', barColor: '#7c3aed', badgeBg: 'style="background:#f3e8ff; color:#6b21a8;"' }
+                    { name: 'Small Hall', subtitle: 'Small Banquet & Seminar Hall', pillClass: 'hall-1', barColor: '#0284c7', badgeBg: 'bg-primary-subtle text-primary' },
+                    { name: 'Big Hall', subtitle: 'Main Grand Convention Hall', pillClass: 'hall-2', barColor: '#7c3aed', badgeBg: 'style="background:#f3e8ff; color:#6b21a8;"' }
                 ];
 
                 // Check for additional dynamic halls
@@ -3445,8 +3833,8 @@ function initApp() {
                     }
                 });
 
-                const h1 = grandTotals.hallBreakdown && grandTotals.hallBreakdown['Hall 1'];
-                const h2 = grandTotals.hallBreakdown && grandTotals.hallBreakdown['Hall 2'];
+                const h1 = grandTotals.hallBreakdown && (grandTotals.hallBreakdown['Small Hall'] || grandTotals.hallBreakdown['Hall 1']);
+                const h2 = grandTotals.hallBreakdown && (grandTotals.hallBreakdown['Big Hall'] || grandTotals.hallBreakdown['Hall 2']);
                 dispHall1Count = h1 ? h1.totalEvents : 0;
                 dispHall1Revenue = h1 ? h1.revenue : 0;
                 dispHall2Count = h2 ? h2.totalEvents : 0;
@@ -3493,8 +3881,8 @@ function initApp() {
                 dispCancelled = y.cancelledEvents || 0;
                 dispArchived = y.archivedEvents || 0;
 
-                const h1 = y.hallBreakdown && y.hallBreakdown['Hall 1'];
-                const h2 = y.hallBreakdown && y.hallBreakdown['Hall 2'];
+                const h1 = y.hallBreakdown && (y.hallBreakdown['Small Hall'] || y.hallBreakdown['Hall 1']);
+                const h2 = y.hallBreakdown && (y.hallBreakdown['Big Hall'] || y.hallBreakdown['Hall 2']);
                 dispHall1Count = h1 ? h1.totalEvents : 0;
                 dispHall1Revenue = h1 ? h1.revenue : 0;
                 dispHall2Count = h2 ? h2.totalEvents : 0;
@@ -3580,13 +3968,13 @@ function initApp() {
                         if (chart1Subtitle) chart1Subtitle.textContent = 'Annual event volume comparison across halls';
 
                         chart1Labels = chronSummaries.map(s => s.year);
-                        const hall1Data = chronSummaries.map(s => (s.hallBreakdown['Hall 1'] ? s.hallBreakdown['Hall 1'].totalEvents : 0));
-                        const hall2Data = chronSummaries.map(s => (s.hallBreakdown['Hall 2'] ? s.hallBreakdown['Hall 2'].totalEvents : 0));
+                        const hall1Data = chronSummaries.map(s => ((s.hallBreakdown['Small Hall'] || s.hallBreakdown['Hall 1']) ? (s.hallBreakdown['Small Hall'] || s.hallBreakdown['Hall 1']).totalEvents : 0));
+                        const hall2Data = chronSummaries.map(s => ((s.hallBreakdown['Big Hall'] || s.hallBreakdown['Hall 2']) ? (s.hallBreakdown['Big Hall'] || s.hallBreakdown['Hall 2']).totalEvents : 0));
                         const totalData = chronSummaries.map(s => s.totalEvents);
 
                         chart1Datasets = [
                             {
-                                label: 'Hall 1 (Main Hall)',
+                                label: 'Small Hall',
                                 data: hall1Data,
                                 backgroundColor: 'rgba(2, 132, 199, 0.85)',
                                 borderColor: '#0284c7',
@@ -3595,7 +3983,7 @@ function initApp() {
                                 tension: 0.3
                             },
                             {
-                                label: 'Hall 2 (Executive Hall)',
+                                label: 'Big Hall',
                                 data: hall2Data,
                                 backgroundColor: 'rgba(124, 58, 237, 0.85)',
                                 borderColor: '#7c3aed',
@@ -3617,16 +4005,16 @@ function initApp() {
                     } else {
                         if (chart1Badge) chart1Badge.textContent = `Year ${currentYearlyFilter} Monthly`;
                         if (chart1Title) chart1Title.innerHTML = `<i class="bi bi-bar-chart-fill text-primary me-2"></i>${currentYearlyFilter} Monthly Events by Hall`;
-                        if (chart1Subtitle) chart1Subtitle.textContent = `Monthly event distribution across Hall 1 & Hall 2 in ${currentYearlyFilter}`;
+                        if (chart1Subtitle) chart1Subtitle.textContent = `Monthly event distribution across Small Hall & Big Hall in ${currentYearlyFilter}`;
 
                         chart1Labels = monthlyDistData.map(m => m.monthName);
-                        const hall1Data = monthlyDistData.map(m => m.hall1Events);
-                        const hall2Data = monthlyDistData.map(m => m.hall2Events);
+                        const hall1Data = monthlyDistData.map(m => (m.smallHallEvents !== undefined ? m.smallHallEvents : m.hall1Events || 0));
+                        const hall2Data = monthlyDistData.map(m => (m.bigHallEvents !== undefined ? m.bigHallEvents : m.hall2Events || 0));
                         const totalData = monthlyDistData.map(m => m.totalEvents);
 
                         chart1Datasets = [
                             {
-                                label: 'Hall 1',
+                                label: 'Small Hall',
                                 data: hall1Data,
                                 backgroundColor: 'rgba(2, 132, 199, 0.85)',
                                 borderColor: '#0284c7',
@@ -3635,7 +4023,7 @@ function initApp() {
                                 tension: 0.3
                             },
                             {
-                                label: 'Hall 2',
+                                label: 'Big Hall',
                                 data: hall2Data,
                                 backgroundColor: 'rgba(124, 58, 237, 0.85)',
                                 borderColor: '#7c3aed',
@@ -3863,8 +4251,8 @@ function initApp() {
                     comparisonBody.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-muted">No yearly data recorded.</td></tr>`;
                 } else {
                     comparisonBody.innerHTML = yearlySummaries.map(y => {
-                        const h1 = y.hallBreakdown['Hall 1'] || { totalEvents: 0 };
-                        const h2 = y.hallBreakdown['Hall 2'] || { totalEvents: 0 };
+                        const h1 = y.hallBreakdown['Small Hall'] || y.hallBreakdown['Hall 1'] || { totalEvents: 0 };
+                        const h2 = y.hallBreakdown['Big Hall'] || y.hallBreakdown['Hall 2'] || { totalEvents: 0 };
                         const isCurrentSelected = (currentYearlyFilter === y.year);
 
                         return `
@@ -4495,12 +4883,12 @@ function initApp() {
                     borderRadius: 6
                 }];
             } else {
-                const h1Data = slotKeys.map(k => slots[k]?.hallCounts?.['Hall 1'] || 0);
-                const h2Data = slotKeys.map(k => slots[k]?.hallCounts?.['Hall 2'] || 0);
+                const h1Data = slotKeys.map(k => slots[k]?.hallCounts?.['Small Hall'] || slots[k]?.hallCounts?.['Hall 1'] || 0);
+                const h2Data = slotKeys.map(k => slots[k]?.hallCounts?.['Big Hall'] || slots[k]?.hallCounts?.['Hall 2'] || 0);
 
                 datasets = [
                     {
-                        label: 'Hall 1 Bookings',
+                        label: 'Small Hall Bookings',
                         data: h1Data,
                         backgroundColor: 'rgba(37, 99, 235, 0.85)',
                         borderColor: '#2563eb',
@@ -4508,7 +4896,7 @@ function initApp() {
                         borderRadius: 6
                     },
                     {
-                        label: 'Hall 2 Bookings',
+                        label: 'Big Hall Bookings',
                         data: h2Data,
                         backgroundColor: 'rgba(124, 58, 237, 0.85)',
                         borderColor: '#7c3aed',
@@ -4671,7 +5059,7 @@ function initApp() {
                             </div>
                         </td>
                         <td>
-                            <span class="badge ${hallBadgeClass} px-2.5 py-1 fw-semibold">${escapeHtml(e.hall || 'Hall 1')}</span>
+                            <span class="badge ${hallBadgeClass} px-2.5 py-1 fw-semibold">${escapeHtml(e.hall || 'Small Hall')}</span>
                         </td>
                         <td>
                             <div class="fw-bold text-dark">${escapeHtml(e.eventName)}</div>
@@ -4846,9 +5234,695 @@ function initApp() {
         });
     }
 
+    // =========================================================================
+    // FACULTY OPERATIONS LOGIC (TODAY'S & UPCOMING TASKS, CHECKLISTS, ACKNOWLEDGMENT)
+    // =========================================================================
+
+    let facCurrentShift = 'all';
+    let facCurrentHall = 'All';
+    let facCurrentStatus = 'All';
+    let facCurrentSearch = '';
+
+    async function loadFacultyTodayView() {
+        const datePicker = document.getElementById('fac-date-picker');
+        const selectedDate = datePicker ? (datePicker.value || getTodayDateString()) : getTodayDateString();
+
+        const container = document.getElementById('faculty-today-cards-container');
+        const emptyState = document.getElementById('faculty-today-empty-state');
+        if (container) {
+            container.innerHTML = `
+                <div class="col-12 text-center py-5">
+                    <div class="spinner-border text-success" role="status"></div>
+                    <div class="small text-muted mt-2">Loading today's event tasks...</div>
+                </div>
+            `;
+        }
+
+        try {
+            const query = new URLSearchParams({
+                type: 'today',
+                date: selectedDate,
+                shift: facCurrentShift,
+                hall: facCurrentHall,
+                status: facCurrentStatus,
+                search: facCurrentSearch
+            });
+
+            const res = await fetch(`/api/staff/events?${query.toString()}`);
+            const result = await res.json();
+
+            if (result.success && Array.isArray(result.data)) {
+                renderFacultyTodayCards(result.data, selectedDate);
+            } else {
+                if (container) container.innerHTML = '';
+                if (emptyState) emptyState.classList.remove('d-none');
+            }
+        } catch (err) {
+            console.error("Error loading faculty today tasks:", err);
+            if (container) {
+                container.innerHTML = `<div class="col-12"><div class="alert alert-danger">Failed to load event tasks.</div></div>`;
+            }
+        }
+    }
+
+    function renderFacultyTodayCards(events = [], selectedDate) {
+        const container = document.getElementById('faculty-today-cards-container');
+        const emptyState = document.getElementById('faculty-today-empty-state');
+
+        // Update KPI counters
+        const totalCount = events.length;
+        const readyCount = events.filter(e => (e.requirements && e.requirements.status === 'Ready')).length;
+        const progressCount = events.filter(e => (e.requirements && e.requirements.status === 'In Progress')).length;
+        const pendingCount = events.filter(e => (!e.requirements || e.requirements.status === 'Pending' || !e.requirements.status)).length;
+
+        if (document.getElementById('fac-kpi-total')) document.getElementById('fac-kpi-total').textContent = totalCount;
+        if (document.getElementById('fac-kpi-ready')) document.getElementById('fac-kpi-ready').textContent = readyCount;
+        if (document.getElementById('fac-kpi-progress')) document.getElementById('fac-kpi-progress').textContent = progressCount;
+        if (document.getElementById('fac-kpi-pending')) document.getElementById('fac-kpi-pending').textContent = pendingCount;
+
+        if (!events || events.length === 0) {
+            if (container) container.innerHTML = '';
+            if (emptyState) emptyState.classList.remove('d-none');
+            return;
+        }
+
+        if (emptyState) emptyState.classList.add('d-none');
+
+        let html = '';
+        events.forEach(event => {
+            const reqs = event.requirements || {};
+            const chairs = reqs.chairs || { needed: true, quantity: 100, prepared: false, notes: '' };
+            const sound = reqs.sound || { needed: true, type: 'Podium Mic', prepared: false, notes: '' };
+            const lighting = reqs.lighting || { needed: true, type: 'Stage Lighting', prepared: false, notes: '' };
+            const catering = reqs.catering || { needed: false, type: 'None', prepared: false, notes: '' };
+
+            const isReady = reqs.status === 'Ready';
+            const isProgress = reqs.status === 'In Progress';
+            const cardClass = isReady ? 'ready-card' : (isProgress ? 'progress-card' : 'pending-card');
+
+            const statusBadge = isReady 
+                ? '<span class="badge bg-success text-white px-2.5 py-1 fw-semibold"><i class="bi bi-check-circle me-1"></i>Ready & Prepared</span>'
+                : (isProgress 
+                    ? '<span class="badge bg-primary text-white px-2.5 py-1 fw-semibold"><i class="bi bi-hourglass-split me-1"></i>Setup In Progress</span>'
+                    : '<span class="badge bg-warning text-dark px-2.5 py-1 fw-semibold"><i class="bi bi-exclamation-circle me-1"></i>Setup Pending</span>');
+
+            const shiftBadgeClass = `badge-shift-${(event.shift || 'morning').toLowerCase()}`;
+            const hallColorClass = (event.hall === 'Small Hall' || event.hall === 'Hall 1') ? 'text-primary' : 'text-purple';
+
+            html += `
+                <div class="col-12 col-xl-6">
+                    <div class="card faculty-event-card ${cardClass} p-4 h-100">
+                        <!-- Event Card Header -->
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div>
+                                <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                                    <span class="badge ${shiftBadgeClass} px-2.5 py-1 fw-bold rounded-pill">
+                                        <i class="bi bi-clock me-1"></i>${escapeHtml(event.shift || 'Shift')} (${escapeHtml(event.startTime)} - ${escapeHtml(event.endTime)})
+                                    </span>
+                                    <span class="badge bg-light text-dark border px-2.5 py-1 fw-semibold">
+                                        <i class="bi bi-building me-1 ${hallColorClass}"></i>${escapeHtml(event.hall)}
+                                    </span>
+                                    <span class="badge bg-secondary-subtle text-secondary px-2 py-0.5 font-monospace small">
+                                        ${escapeHtml(event.id)}
+                                    </span>
+                                </div>
+                                <h5 class="fw-bold text-dark mb-1">${escapeHtml(event.eventName)}</h5>
+                                <div class="text-muted small">
+                                    <i class="bi bi-person me-1"></i>Organizer: <strong>${escapeHtml(event.customerName)}</strong> &bull;
+                                    <a href="tel:${escapeHtml(event.mobileNumber)}" class="text-decoration-none text-muted">
+                                        <i class="bi bi-telephone me-1"></i>${escapeHtml(event.mobileNumber)}
+                                    </a>
+                                </div>
+                            </div>
+                            <div>${statusBadge}</div>
+                        </div>
+
+                        ${event.notes ? `
+                            <div class="alert alert-light border py-2 px-3 mb-3 small">
+                                <i class="bi bi-info-circle text-primary me-1"></i><strong>Organizer Note:</strong> ${escapeHtml(event.notes)}
+                            </div>
+                        ` : ''}
+
+                        <!-- Requirements Checklist Grid (Chairs, Sound, Lighting, Catering) -->
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="small fw-bold text-muted text-uppercase" style="font-size:0.75rem; letter-spacing:0.5px;">
+                                    <i class="bi bi-check2-square text-success me-1"></i>Hall Preparation Checklist
+                                </span>
+                                <small class="text-muted">Click checkbox to toggle item</small>
+                            </div>
+
+                            <div class="row g-2">
+                                <!-- Chairs Checklist Box -->
+                                <div class="col-6">
+                                    <div class="req-box ${chairs.prepared ? 'req-prepared' : ''} d-flex align-items-start gap-2">
+                                        <input class="form-check-input mt-1 fac-req-toggle" type="checkbox" data-id="${event.id}" data-category="chairs" id="chk-chairs-${event.id}" ${chairs.prepared ? 'checked' : ''}>
+                                        <label class="form-check-label w-100 cursor-pointer" for="chk-chairs-${event.id}">
+                                            <div class="fw-bold small text-dark d-flex justify-content-between">
+                                                <span>🪑 Chairs & Seating</span>
+                                                <span class="badge bg-light text-muted border">${chairs.quantity || 0}</span>
+                                            </div>
+                                            <div class="text-muted" style="font-size: 0.72rem;">${escapeHtml(chairs.notes || 'Auditorium seating')}</div>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- Sound Checklist Box -->
+                                <div class="col-6">
+                                    <div class="req-box ${sound.prepared ? 'req-prepared' : ''} d-flex align-items-start gap-2">
+                                        <input class="form-check-input mt-1 fac-req-toggle" type="checkbox" data-id="${event.id}" data-category="sound" id="chk-sound-${event.id}" ${sound.prepared ? 'checked' : ''}>
+                                        <label class="form-check-label w-100 cursor-pointer" for="chk-sound-${event.id}">
+                                            <div class="fw-bold small text-dark">🔊 Sound & Mic</div>
+                                            <div class="text-muted text-truncate" style="font-size: 0.72rem;">${escapeHtml(sound.type || 'Podium Mic')}</div>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- Lighting Checklist Box -->
+                                <div class="col-6">
+                                    <div class="req-box ${lighting.prepared ? 'req-prepared' : ''} d-flex align-items-start gap-2">
+                                        <input class="form-check-input mt-1 fac-req-toggle" type="checkbox" data-id="${event.id}" data-category="lighting" id="chk-lighting-${event.id}" ${lighting.prepared ? 'checked' : ''}>
+                                        <label class="form-check-label w-100 cursor-pointer" for="chk-lighting-${event.id}">
+                                            <div class="fw-bold small text-dark">💡 Stage Lighting</div>
+                                            <div class="text-muted text-truncate" style="font-size: 0.72rem;">${escapeHtml(lighting.type || 'Hall & Stage')}</div>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- Catering Checklist Box -->
+                                <div class="col-6">
+                                    <div class="req-box ${catering.prepared ? 'req-prepared' : ''} d-flex align-items-start gap-2">
+                                        <input class="form-check-input mt-1 fac-req-toggle" type="checkbox" data-id="${event.id}" data-category="catering" id="chk-catering-${event.id}" ${catering.prepared ? 'checked' : ''} ${!catering.needed ? 'disabled' : ''}>
+                                        <label class="form-check-label w-100 cursor-pointer" for="chk-catering-${event.id}">
+                                            <div class="fw-bold small text-dark d-flex justify-content-between">
+                                                <span>☕ Catering</span>
+                                                ${!catering.needed ? '<span class="badge bg-secondary-subtle text-secondary" style="font-size:0.65rem;">N/A</span>' : ''}
+                                            </div>
+                                            <div class="text-muted text-truncate" style="font-size: 0.72rem;">${catering.needed ? escapeHtml(catering.type || 'Refreshments') : 'Not requested'}</div>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Staff Signatures & Acknowledgment Status -->
+                        <div class="d-flex justify-content-between align-items-center mt-auto pt-3 border-top flex-wrap gap-2">
+                            <div class="small text-muted">
+                                ${reqs.acknowledgedBy ? `
+                                    <div><i class="bi bi-patch-check-fill text-success me-1"></i>Acknowledged by: <strong>${escapeHtml(reqs.acknowledgedBy)}</strong></div>
+                                ` : `
+                                    <div><i class="bi bi-circle text-warning me-1"></i>Task not acknowledged yet</div>
+                                `}
+                                ${reqs.preparedBy ? `
+                                    <div><i class="bi bi-check2-all text-primary me-1"></i>Setup ready by: <strong>${escapeHtml(reqs.preparedBy)}</strong></div>
+                                ` : ''}
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="d-flex align-items-center gap-2">
+                                <button class="btn btn-sm btn-outline-secondary btn-fac-view-details" data-id="${event.id}" title="View Details">
+                                    <i class="bi bi-eye me-1"></i>Details
+                                </button>
+                                ${!reqs.acknowledgedBy ? `
+                                    <button class="btn btn-sm btn-outline-success btn-fac-ack" data-id="${event.id}">
+                                        <i class="bi bi-patch-check me-1"></i>Acknowledge
+                                    </button>
+                                ` : ''}
+                                <button class="btn btn-sm ${isReady ? 'btn-success disabled' : 'btn-primary'} btn-fac-mark-ready" data-id="${event.id}" ${isReady ? 'disabled' : ''}>
+                                    <i class="bi bi-check2-circle me-1"></i>${isReady ? 'Ready' : 'Mark Prepared'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+
+        // Attach listeners for interactive checklist checkboxes
+        container.querySelectorAll('.fac-req-toggle').forEach(checkbox => {
+            checkbox.addEventListener('change', async (e) => {
+                const bookingId = e.target.getAttribute('data-id');
+                const category = e.target.getAttribute('data-category');
+                const isChecked = e.target.checked;
+                await updateChecklistItem(bookingId, category, isChecked);
+            });
+        });
+
+        // Attach listeners for Mark Prepared button
+        container.querySelectorAll('.btn-fac-mark-ready').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const bookingId = btn.getAttribute('data-id');
+                await facultyMarkPrepared(bookingId);
+            });
+        });
+
+        // Attach listeners for Acknowledge button
+        container.querySelectorAll('.btn-fac-ack').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const bookingId = btn.getAttribute('data-id');
+                await facultyAcknowledgeTask(bookingId);
+            });
+        });
+
+        // Attach listeners for View Details modal
+        container.querySelectorAll('.btn-fac-view-details').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const bookingId = btn.getAttribute('data-id');
+                openFacultyEventModal(bookingId);
+            });
+        });
+    }
+
+    async function updateChecklistItem(bookingId, category, isChecked) {
+        try {
+            const payload = {};
+            payload[category] = { prepared: isChecked };
+
+            const res = await fetch(`/api/staff/events/${bookingId}/requirements`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const result = await res.json();
+            if (result.success) {
+                showToast(`${category.charAt(0).toUpperCase() + category.slice(1)} marked ${isChecked ? 'ready' : 'pending'}`);
+                loadFacultyTodayView();
+            } else {
+                showToast(`Error: ${result.message}`);
+            }
+        } catch (err) {
+            showToast('Failed to update requirement checklist.');
+        }
+    }
+
+    async function facultyMarkPrepared(bookingId) {
+        try {
+            const res = await fetch(`/api/staff/events/${bookingId}/mark-prepared`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ notes: 'All requirements verified by staff' })
+            });
+            const result = await res.json();
+            if (result.success) {
+                showToast('All setup requirements marked ready!');
+                loadFacultyTodayView();
+                if (facultyEventModal) facultyEventModal.hide();
+            } else {
+                showToast(`Error: ${result.message}`);
+            }
+        } catch (err) {
+            showToast('Failed to mark event prepared.');
+        }
+    }
+
+    async function facultyAcknowledgeTask(bookingId) {
+        try {
+            const res = await fetch(`/api/staff/events/${bookingId}/acknowledge`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ notes: 'Task duty acknowledged' })
+            });
+            const result = await res.json();
+            if (result.success) {
+                showToast('Event duty acknowledged!');
+                loadFacultyTodayView();
+                if (facultyEventModal) facultyEventModal.hide();
+            } else {
+                showToast(`Error: ${result.message}`);
+            }
+        } catch (err) {
+            showToast('Failed to acknowledge task.');
+        }
+    }
+
+    async function openFacultyEventModal(bookingId) {
+        try {
+            const res = await fetch(`/api/staff/events/${bookingId}`);
+            const result = await res.json();
+
+            if (result.success && result.data) {
+                const event = result.data;
+                const reqs = event.requirements || {};
+                const modalBody = document.getElementById('faculty-modal-body');
+
+                const isReady = reqs.status === 'Ready';
+                const isProgress = reqs.status === 'In Progress';
+                const statusBadge = isReady 
+                    ? '<span class="badge bg-success text-white px-3 py-1.5 fw-semibold"><i class="bi bi-check-circle me-1"></i>Ready & Prepared</span>'
+                    : (isProgress 
+                        ? '<span class="badge bg-primary text-white px-3 py-1.5 fw-semibold"><i class="bi bi-hourglass-split me-1"></i>Setup In Progress</span>'
+                        : '<span class="badge bg-warning text-dark px-3 py-1.5 fw-semibold"><i class="bi bi-exclamation-circle me-1"></i>Setup Pending</span>');
+
+                const shiftBadgeClass = `badge-shift-${(event.shift || 'morning').toLowerCase()}`;
+
+                modalBody.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-start mb-3 pb-3 border-bottom flex-wrap gap-2">
+                        <div>
+                            <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                                <span class="badge bg-primary-subtle text-primary border px-2.5 py-1 font-monospace fw-bold">${escapeHtml(event.id)}</span>
+                                <span class="badge ${shiftBadgeClass} px-2.5 py-1 fw-bold rounded-pill">${escapeHtml(event.shift || 'Shift')} Shift</span>
+                                <span class="badge bg-light text-dark border px-2.5 py-1"><i class="bi bi-building me-1"></i>${escapeHtml(event.hall)}</span>
+                                <span class="badge bg-info-subtle text-info border px-2.5 py-1"><i class="bi bi-calendar-event me-1"></i>${escapeHtml(event.bookingDate)}</span>
+                            </div>
+                            <h4 class="fw-bold text-dark mb-0">${escapeHtml(event.eventName)}</h4>
+                        </div>
+                        <div>${statusBadge}</div>
+                    </div>
+
+                    <!-- Event Details Grid (NO FINANCIALS) -->
+                    <div class="row g-3 mb-4">
+                        <div class="col-6 col-md-4">
+                            <div class="p-3 bg-light rounded-3">
+                                <div class="text-muted small mb-1"><i class="bi bi-person me-1"></i>Organizer / Customer</div>
+                                <div class="fw-bold text-dark">${escapeHtml(event.customerName)}</div>
+                                <div class="small text-muted">${escapeHtml(event.mobileNumber)}</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-4">
+                            <div class="p-3 bg-light rounded-3">
+                                <div class="text-muted small mb-1"><i class="bi bi-clock me-1"></i>Time Slot</div>
+                                <div class="fw-bold text-dark">${escapeHtml(event.startTime)} – ${escapeHtml(event.endTime)}</div>
+                                <div class="small text-muted">${escapeHtml(event.hall)}</div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div class="p-3 bg-light rounded-3">
+                                <div class="text-muted small mb-1"><i class="bi bi-tag me-1"></i>Booking Status</div>
+                                <div class="fw-bold text-primary">${escapeHtml(event.status)}</div>
+                                <div class="small text-muted">Operational Duty Active</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    ${event.notes ? `
+                        <div class="alert alert-light border p-3 mb-4">
+                            <div class="fw-bold small text-dark mb-1"><i class="bi bi-chat-left-text me-1 text-primary"></i>Organizer Notes / Requirements:</div>
+                            <p class="mb-0 text-muted small">${escapeHtml(event.notes)}</p>
+                        </div>
+                    ` : ''}
+
+                    <!-- Requirements Checklist Details -->
+                    <div class="card border rounded-3 p-3 mb-4">
+                        <h6 class="fw-bold text-dark mb-3"><i class="bi bi-card-checklist text-success me-2"></i>Requirements Checklist Status</h6>
+                        <div class="row g-3">
+                            <div class="col-6">
+                                <div class="p-2.5 rounded-3 border ${reqs.chairs && reqs.chairs.prepared ? 'bg-success-subtle border-success-subtle' : 'bg-light'}">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="fw-bold small">🪑 Chairs (${reqs.chairs ? reqs.chairs.quantity : 0})</span>
+                                        <span class="badge ${reqs.chairs && reqs.chairs.prepared ? 'bg-success' : 'bg-secondary'}">${reqs.chairs && reqs.chairs.prepared ? 'Ready' : 'Pending'}</span>
+                                    </div>
+                                    <small class="text-muted d-block mt-1">${escapeHtml(reqs.chairs ? reqs.chairs.notes : '')}</small>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="p-2.5 rounded-3 border ${reqs.sound && reqs.sound.prepared ? 'bg-success-subtle border-success-subtle' : 'bg-light'}">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="fw-bold small">🔊 Sound System</span>
+                                        <span class="badge ${reqs.sound && reqs.sound.prepared ? 'bg-success' : 'bg-secondary'}">${reqs.sound && reqs.sound.prepared ? 'Ready' : 'Pending'}</span>
+                                    </div>
+                                    <small class="text-muted d-block mt-1">${escapeHtml(reqs.sound ? reqs.sound.type : '')}</small>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="p-2.5 rounded-3 border ${reqs.lighting && reqs.lighting.prepared ? 'bg-success-subtle border-success-subtle' : 'bg-light'}">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="fw-bold small">💡 Lighting Setup</span>
+                                        <span class="badge ${reqs.lighting && reqs.lighting.prepared ? 'bg-success' : 'bg-secondary'}">${reqs.lighting && reqs.lighting.prepared ? 'Ready' : 'Pending'}</span>
+                                    </div>
+                                    <small class="text-muted d-block mt-1">${escapeHtml(reqs.lighting ? reqs.lighting.type : '')}</small>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="p-2.5 rounded-3 border ${reqs.catering && reqs.catering.prepared ? 'bg-success-subtle border-success-subtle' : 'bg-light'}">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="fw-bold small">☕ Catering Setup</span>
+                                        <span class="badge ${reqs.catering && reqs.catering.prepared ? 'bg-success' : 'bg-secondary'}">${reqs.catering && reqs.catering.needed ? (reqs.catering.prepared ? 'Ready' : 'Pending') : 'N/A'}</span>
+                                    </div>
+                                    <small class="text-muted d-block mt-1">${escapeHtml(reqs.catering && reqs.catering.needed ? reqs.catering.type : 'Not requested')}</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Duty Acknowledgment Info -->
+                    <div class="p-3 bg-light rounded-3 mb-3 small d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div>
+                            <i class="bi bi-patch-check text-success me-1"></i><strong>Task Acknowledgment:</strong>
+                            <span>${reqs.acknowledgedBy ? `Acknowledged by ${escapeHtml(reqs.acknowledgedBy)} on ${escapeHtml((reqs.acknowledgedAt || '').split('T')[0])}` : 'Pending acknowledgment'}</span>
+                        </div>
+                        ${reqs.preparedBy ? `
+                            <div>
+                                <i class="bi bi-check2-all text-primary me-1"></i><strong>Prepared by:</strong> ${escapeHtml(reqs.preparedBy)}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+
+                // Configure modal action buttons
+                const btnAck = document.getElementById('btn-fac-modal-ack');
+                const btnMarkPrep = document.getElementById('btn-fac-modal-mark-prep');
+
+                if (btnAck) {
+                    btnAck.onclick = () => facultyAcknowledgeTask(event.id);
+                    btnAck.style.display = reqs.acknowledgedBy ? 'none' : 'inline-block';
+                }
+                if (btnMarkPrep) {
+                    btnMarkPrep.onclick = () => facultyMarkPrepared(event.id);
+                    btnMarkPrep.disabled = isReady;
+                    btnMarkPrep.innerHTML = isReady ? '<i class="bi bi-check-circle me-1"></i>Ready' : '<i class="bi bi-check2-circle me-1"></i>Mark All Prepared';
+                }
+
+                if (facultyEventModal) facultyEventModal.show();
+            }
+        } catch (err) {
+            showToast('Error loading event details.');
+        }
+    }
+
+    async function loadFacultyUpcomingView() {
+        const container = document.getElementById('faculty-upcoming-cards-container');
+        const emptyState = document.getElementById('faculty-upcoming-empty-state');
+        const hallFilter = document.getElementById('fac-upcoming-hall-filter');
+        const searchInput = document.getElementById('fac-upcoming-search-input');
+
+        const hall = hallFilter ? hallFilter.value : 'All';
+        const search = searchInput ? searchInput.value : '';
+
+        if (container) {
+            container.innerHTML = `
+                <div class="col-12 text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <div class="small text-muted mt-2">Loading upcoming event tasks...</div>
+                </div>
+            `;
+        }
+
+        try {
+            const query = new URLSearchParams({
+                type: 'upcoming',
+                hall: hall,
+                search: search
+            });
+
+            const res = await fetch(`/api/staff/events?${query.toString()}`);
+            const result = await res.json();
+
+            if (result.success && Array.isArray(result.data)) {
+                renderFacultyUpcomingCards(result.data);
+            } else {
+                if (container) container.innerHTML = '';
+                if (emptyState) emptyState.classList.remove('d-none');
+            }
+        } catch (err) {
+            console.error("Error loading upcoming faculty tasks:", err);
+            if (container) container.innerHTML = `<div class="col-12"><div class="alert alert-danger">Failed to load upcoming tasks.</div></div>`;
+        }
+    }
+
+    function renderFacultyUpcomingCards(events = []) {
+        const container = document.getElementById('faculty-upcoming-cards-container');
+        const emptyState = document.getElementById('faculty-upcoming-empty-state');
+
+        if (!events || events.length === 0) {
+            if (container) container.innerHTML = '';
+            if (emptyState) emptyState.classList.remove('d-none');
+            return;
+        }
+
+        if (emptyState) emptyState.classList.add('d-none');
+
+        let html = '';
+        events.forEach(event => {
+            const reqs = event.requirements || {};
+            const chairs = reqs.chairs || {};
+            const sound = reqs.sound || {};
+            const lighting = reqs.lighting || {};
+
+            const isReady = reqs.status === 'Ready';
+            const shiftBadgeClass = `badge-shift-${(event.shift || 'morning').toLowerCase()}`;
+
+            html += `
+                <div class="col-12 col-md-6 col-xl-4">
+                    <div class="card faculty-event-card p-3.5 h-100">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="badge bg-light text-primary border fw-bold px-2.5 py-1">
+                                <i class="bi bi-calendar3 me-1"></i>${escapeHtml(event.bookingDate)}
+                            </span>
+                            <span class="badge ${shiftBadgeClass} px-2 py-1 fw-bold rounded-pill">
+                                ${escapeHtml(event.shift || 'Shift')}
+                            </span>
+                        </div>
+
+                        <h6 class="fw-bold text-dark mb-1">${escapeHtml(event.eventName)}</h6>
+                        <div class="small text-muted mb-2">
+                            <i class="bi bi-building me-1"></i>${escapeHtml(event.hall)} &bull; ${escapeHtml(event.startTime)} - ${escapeHtml(event.endTime)}
+                        </div>
+                        <div class="small text-muted mb-3">
+                            <i class="bi bi-person me-1"></i>${escapeHtml(event.customerName)} (${escapeHtml(event.mobileNumber)})
+                        </div>
+
+                        <!-- Quick Requirements Summary Badges -->
+                        <div class="p-2.5 bg-light rounded-3 mb-3 small">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>🪑 Seating:</span>
+                                <span class="fw-semibold text-dark">${chairs.quantity || 100} Chairs</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>🔊 Sound:</span>
+                                <span class="fw-semibold text-dark text-truncate max-w-150">${escapeHtml(sound.type || 'Standard')}</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>💡 Lighting:</span>
+                                <span class="fw-semibold text-dark text-truncate max-w-150">${escapeHtml(lighting.type || 'Standard')}</span>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center mt-auto pt-2 border-top">
+                            <span class="badge ${isReady ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'} border">
+                                ${isReady ? '✅ Ready' : '⏳ Prep Pending'}
+                            </span>
+                            <button class="btn btn-sm btn-outline-primary btn-fac-view-details" data-id="${event.id}">
+                                <i class="bi bi-eye me-1"></i>View Details
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+
+        container.querySelectorAll('.btn-fac-view-details').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const bookingId = btn.getAttribute('data-id');
+                openFacultyEventModal(bookingId);
+            });
+        });
+    }
+
+    // Attach Event Listeners for Faculty Controls
+    const facDatePicker = document.getElementById('fac-date-picker');
+    if (facDatePicker) {
+        facDatePicker.addEventListener('change', () => loadFacultyTodayView());
+    }
+
+    const btnFacPrev = document.getElementById('btn-fac-prev');
+    if (btnFacPrev) {
+        btnFacPrev.addEventListener('click', () => {
+            const picker = document.getElementById('fac-date-picker');
+            const currentVal = picker ? picker.value : getTodayDateString();
+            const parts = currentVal.split('-').map(Number);
+            const d = new Date(parts[0], parts[1] - 1, parts[2]);
+            d.setDate(d.getDate() - 1);
+            const prevStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            if (picker) picker.value = prevStr;
+            loadFacultyTodayView();
+        });
+    }
+
+    const btnFacNext = document.getElementById('btn-fac-next');
+    if (btnFacNext) {
+        btnFacNext.addEventListener('click', () => {
+            const picker = document.getElementById('fac-date-picker');
+            const currentVal = picker ? picker.value : getTodayDateString();
+            const parts = currentVal.split('-').map(Number);
+            const d = new Date(parts[0], parts[1] - 1, parts[2]);
+            d.setDate(d.getDate() + 1);
+            const nextStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            if (picker) picker.value = nextStr;
+            loadFacultyTodayView();
+        });
+    }
+
+    const btnFacToday = document.getElementById('btn-fac-today');
+    if (btnFacToday) {
+        btnFacToday.addEventListener('click', () => {
+            const picker = document.getElementById('fac-date-picker');
+            if (picker) picker.value = getTodayDateString();
+            loadFacultyTodayView();
+        });
+    }
+
+    const btnRefreshFacToday = document.getElementById('btn-refresh-faculty-today');
+    if (btnRefreshFacToday) {
+        btnRefreshFacToday.addEventListener('click', () => loadFacultyTodayView());
+    }
+
+    const btnRefreshFacUpcoming = document.getElementById('btn-refresh-faculty-upcoming');
+    if (btnRefreshFacUpcoming) {
+        btnRefreshFacUpcoming.addEventListener('click', () => loadFacultyUpcomingView());
+    }
+
+    // Shift filter buttons
+    document.querySelectorAll('#fac-shift-pills button').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('#fac-shift-pills button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            facCurrentShift = btn.getAttribute('data-shift') || 'all';
+            loadFacultyTodayView();
+        });
+    });
+
+    const facHallFilter = document.getElementById('fac-hall-filter');
+    if (facHallFilter) {
+        facHallFilter.addEventListener('change', (e) => {
+            facCurrentHall = e.target.value;
+            loadFacultyTodayView();
+        });
+    }
+
+    const facStatusFilter = document.getElementById('fac-status-filter');
+    if (facStatusFilter) {
+        facStatusFilter.addEventListener('change', (e) => {
+            facCurrentStatus = e.target.value;
+            loadFacultyTodayView();
+        });
+    }
+
+    const facSearchInput = document.getElementById('fac-search-input');
+    if (facSearchInput) {
+        facSearchInput.addEventListener('input', (e) => {
+            facCurrentSearch = e.target.value;
+            loadFacultyTodayView();
+        });
+    }
+
+    const facUpcomingHallFilter = document.getElementById('fac-upcoming-hall-filter');
+    if (facUpcomingHallFilter) {
+        facUpcomingHallFilter.addEventListener('change', () => loadFacultyUpcomingView());
+    }
+
+    const facUpcomingSearchInput = document.getElementById('fac-upcoming-search-input');
+    if (facUpcomingSearchInput) {
+        facUpcomingSearchInput.addEventListener('input', () => loadFacultyUpcomingView());
+    }
+
     // HELPER FUNCTIONS
     function showToast(msg) {
-        document.getElementById('toast-message').textContent = msg;
+        const toastMsgEl = document.getElementById('toast-message');
+        if (toastMsgEl) toastMsgEl.textContent = msg;
         liveToast.show();
     }
 
@@ -4857,9 +5931,30 @@ function initApp() {
         return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     }
 
-    // Step 1 — Initial Dashboard Load
-    console.log("DEBUG: Initializing Dashboard View...");
-    switchView('dashboard'); // force Dashboard to load immediately
+    // Initial Authentication Gate & Session Boot
+    const storedSession = getStoredSession();
+    const portal = getRequestedPortal();
+
+    if (storedSession && storedSession.user) {
+        currentUser = storedSession.user;
+        isAdminSession = (currentUser.role === 'Admin');
+
+        if (portal === 'Staff') {
+            currentRole = 'Staff';
+            currentView = 'faculty-today';
+        } else {
+            if (currentUser.role === 'Admin') {
+                currentRole = 'Admin';
+                currentView = 'dashboard';
+            } else {
+                currentRole = 'Staff';
+                currentView = 'faculty-today';
+            }
+        }
+        showDashboardApp();
+    } else {
+        showAuthScreen(portal);
+    }
 }
 
 // Robust execution whether DOM is loading or already parsed

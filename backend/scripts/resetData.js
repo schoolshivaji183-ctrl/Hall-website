@@ -2,7 +2,7 @@
  * Reset / Clean Slate Utility
  * 
  * Clears all sample/past bookings, payments, and audit logs from MongoDB Atlas
- * while preserving master Halls and Users so the client starts completely fresh.
+ * while preserving master Halls and Admin/Staff accounts so the client starts completely fresh.
  * 
  * Usage:
  *   npm run reset
@@ -11,6 +11,7 @@
 
 require('dotenv').config();
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
 const { Booking } = require('../models/schemas/BookingSchema');
 const { Payment } = require('../models/schemas/PaymentSchema');
 const { AuditLog } = require('../models/schemas/AuditLogSchema');
@@ -27,6 +28,7 @@ const hallsData = [
         basePricePerDay: 15000,
         amenities: ["HD Laser Projector", "Central Air Conditioning", "Surround Sound Array", "Podium with Mic", "Stage Lighting"],
         location: "Main Academic Block - Ground Floor",
+        status: "available",
         isActive: true
     },
     {
@@ -37,14 +39,16 @@ const hallsData = [
         basePricePerDay: 10000,
         amenities: ["Interactive Smart Display", "Air Conditioning", "PA Sound System", "High-speed Wi-Fi", "Green Room"],
         location: "Convention Wing - 2nd Floor",
+        status: "available",
         isActive: true
     }
 ];
 
-// Master Users (Preserved for system access)
+// Master Users with Hashed Passwords
 const usersData = [
     {
         username: "admin",
+        password: bcrypt.hashSync("admin123", 10),
         name: "System Administrator",
         email: "admin@hallmanager.edu",
         role: "Admin",
@@ -52,19 +56,12 @@ const usersData = [
         isActive: true
     },
     {
-        username: "faculty_coord",
-        name: "Dr. Faculty Coordinator",
-        email: "faculty@hallmanager.edu",
-        role: "Faculty",
-        department: "Academic Affairs",
-        isActive: true
-    },
-    {
-        username: "staff_desk",
+        username: "staff",
+        password: bcrypt.hashSync("staff123", 10),
         name: "Staff Desk Officer",
-        email: "desk@hallmanager.edu",
+        email: "staff@hallmanager.edu",
         role: "Staff",
-        department: "Facility Booking Desk",
+        department: "Facility Operations",
         isActive: true
     }
 ];
@@ -106,12 +103,13 @@ async function resetAllData() {
         }
         console.log(`✅  Halls verified (Hall 1, Hall 2 ready for client bookings).`);
 
-        // 5. Ensure Master Users are ready
+        // 5. Ensure Master Users are ready with Hashed Passwords
         console.log('👤  Ensuring Master Users are ready...');
+        await User.deleteMany({ username: { $nin: ['admin', 'staff'] } });
         for (const user of usersData) {
             await User.findOneAndUpdate({ username: user.username }, user, { upsert: true, returnDocument: 'after' });
         }
-        console.log(`✅  Users verified (Admin, Faculty, Staff accounts ready).`);
+        console.log(`✅  Users verified (Admin, Staff accounts ready).`);
 
         // 6. Log system initialization audit entry
         await AuditLog.create({

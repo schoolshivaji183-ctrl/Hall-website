@@ -28,6 +28,57 @@ function getFormattedTime() {
     return new Date().toTimeString().split(' ')[0];
 }
 
+function getShiftForTime(timeStr) {
+    if (!timeStr) return 'Morning';
+    const parts = timeStr.split(':').map(Number);
+    const hours = isNaN(parts[0]) ? 0 : parts[0];
+    const minutes = isNaN(parts[1]) ? 0 : parts[1];
+    const totalMins = hours * 60 + minutes;
+
+    if (totalMins >= 360 && totalMins < 720) return 'Morning';
+    if (totalMins >= 720 && totalMins < 960) return 'Afternoon';
+    if (totalMins >= 960 && totalMins < 1200) return 'Evening';
+    return 'Night';
+}
+
+function buildDefaultRequirements(bookingData = {}) {
+    const isHall1 = (bookingData.hall || '').includes('1');
+    const notes = (bookingData.notes || '').toLowerCase();
+
+    return {
+        chairs: {
+            needed: true,
+            quantity: isHall1 ? 250 : 120,
+            prepared: false,
+            notes: isHall1 ? '250 theatre chairs aligned with center aisle' : '120 conference chairs arranged'
+        },
+        sound: {
+            needed: true,
+            type: notes.includes('mic') || notes.includes('sound') ? 'Podium Mic & Stage Audio Array' : 'Standard Podium PA System',
+            prepared: false,
+            notes: 'Check amplifier, podium mic, and wireless handheld mic'
+        },
+        lighting: {
+            needed: true,
+            type: notes.includes('projector') ? 'Dimmed Presentation Stage Lighting' : 'Full Hall & Stage Illumination',
+            prepared: false,
+            notes: 'Stage focus spotlights and ambient ceiling lights'
+        },
+        catering: {
+            needed: notes.includes('tea') || notes.includes('catering') || notes.includes('lunch') || notes.includes('refreshment'),
+            type: notes.includes('lunch') ? 'Lunch Buffet Station' : (notes.includes('tea') || notes.includes('catering') ? 'High Tea & Snacks' : 'None'),
+            prepared: false,
+            notes: notes.includes('catering') ? 'Dining corridor setup ready' : ''
+        },
+        status: 'Pending',
+        acknowledgedBy: '',
+        acknowledgedAt: '',
+        preparedBy: '',
+        preparedAt: '',
+        facultyNotes: ''
+    };
+}
+
 // In-memory bookings store synchronized with MongoDB Atlas
 let bookingsStore = [];
 
@@ -54,8 +105,8 @@ class BookingModel {
     static clearStore() {
         bookingsStore = [];
     }
-    static checkConflict(hall, bookingDate, startTime, endTime, excludeId = null, status = 'Confirmed') {
-        const existingBookings = this.findAll();
+    static async checkConflict(hall, bookingDate, startTime, endTime, excludeId = null, status = 'Confirmed') {
+        const existingBookings = await this.findAll();
         const validation = BookingValidator.validateSlot({
             hall,
             bookingDate,
@@ -68,8 +119,8 @@ class BookingModel {
         return !validation.isValid;
     }
 
-    static validateSlotDetails({ hall, bookingDate, startTime, endTime, status, excludeId }) {
-        const existingBookings = this.findAll();
+    static async validateSlotDetails({ hall, bookingDate, startTime, endTime, status, excludeId }) {
+        const existingBookings = await this.findAll();
         return BookingValidator.validateSlot({
             hall,
             bookingDate,
@@ -81,7 +132,16 @@ class BookingModel {
         });
     }
 
-    static findAll(filters = {}) {
+    static async findAll(filters = {}) {
+        if (isConnected()) {
+            try {
+                const docs = await Booking.find({}).lean();
+                bookingsStore = docs || [];
+            } catch (err) {
+                console.warn('⚠️  [MongoDB] Failed to query bookings from Atlas:', err.message);
+            }
+        }
+
         let results = [...bookingsStore];
 
         if (filters.search && filters.search.trim() !== '') {
@@ -125,11 +185,19 @@ class BookingModel {
         return results;
     }
 
-    static findById(id) {
+    static async findById(id) {
+        if (isConnected()) {
+            try {
+                const doc = await Booking.findOne({ id }).lean();
+                if (doc) return doc;
+            } catch (err) {
+                console.warn('⚠️  [MongoDB] Failed to query booking by id from Atlas:', err.message);
+            }
+        }
         return bookingsStore.find(b => b.id === id) || null;
     }
 
-    static addTimelineEvent(id, { title, description, category = 'General', user = 'Admin' }) {
+    static async addTimelineEvent(id, { title, description, category = 'General', user = 'Admin' }) {
         const now = new Date();
         const event = {
             id: `TL-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -149,15 +217,17 @@ class BookingModel {
         }
 
         if (isConnected()) {
-            Booking.updateOne({ id }, { $push: { timeline: event } }).catch(err => {
+            try {
+                await Booking.updateOne({ id }, { $push: { timeline: event } });
+            } catch (err) {
                 console.warn('⚠️  [MongoDB] Failed to add timeline event:', err.message);
-            });
+            }
         }
 
         return event;
     }
 
-    static create(data) {
+    static async create(data) {
         const newId = `BOOK-${Math.floor(1000 + Math.random() * 9000)}`;
         const status = data.status || 'Confirmed';
 
@@ -172,6 +242,7 @@ class BookingModel {
             endTime: data.endTime,
             status,
             notes: data.notes ? data.notes.trim() : '',
+            requirements: data.requirements ? { ...buildDefaultRequirements(data), ...data.requirements } : buildDefaultRequirements(data),
             contract: {
                 hallRent: Number(data.hallRent) || 10000,
                 securityDeposit: data.securityDeposit !== undefined && data.securityDeposit !== '' ? Number(data.securityDeposit) : 0,
@@ -206,12 +277,14 @@ class BookingModel {
         bookingsStore.push(newBooking);
 
         if (isConnected()) {
-            Booking.create(newBooking).catch(err => {
+            try {
+                await Booking.create(newBooking);
+            } catch (err) {
                 console.warn('⚠️  [MongoDB] Failed to persist booking:', err.message);
-            });
+            }
         }
 
-        AuditModel.log({
+        await AuditModel.log({
             module: 'Booking',
             action: 'Booking Created',
             targetId: newId,
@@ -231,7 +304,7 @@ class BookingModel {
         return newBooking;
     }
 
-    static update(id, data) {
+    static async update(id, data) {
         let oldBooking = this.findById(id);
         if (!oldBooking) return null;
 
@@ -286,6 +359,7 @@ class BookingModel {
             endTime: data.endTime !== undefined ? data.endTime : oldBooking.endTime,
             status: data.status !== undefined ? data.status : oldBooking.status,
             notes: data.notes !== undefined ? data.notes.trim() : oldBooking.notes,
+            requirements: data.requirements !== undefined ? { ...(oldBooking.requirements || buildDefaultRequirements(oldBooking)), ...data.requirements } : (oldBooking.requirements || buildDefaultRequirements(oldBooking)),
             contract: updatedContract
         };
 
@@ -341,9 +415,11 @@ class BookingModel {
         }
 
         if (isConnected()) {
-            Booking.updateOne({ id }, { $set: updatedBooking }).catch(err => {
+            try {
+                await Booking.updateOne({ id }, { $set: updatedBooking });
+            } catch (err) {
                 console.warn('⚠️  [MongoDB] Failed to update booking:', err.message);
-            });
+            }
         }
 
         const user = data.updatedBy || 'Admin';
@@ -552,7 +628,7 @@ class BookingModel {
         return discountItem;
     }
 
-    static archive(id, user = 'Admin') {
+    static async archive(id, user = 'Admin') {
         const booking = this.findById(id);
         if (!booking) return null;
 
@@ -560,7 +636,11 @@ class BookingModel {
         booking.status = 'Archived';
 
         if (isConnected()) {
-            Booking.updateOne({ id }, { $set: { status: 'Archived' } }).catch(() => {});
+            try {
+                await Booking.updateOne({ id }, { $set: { status: 'Archived' } });
+            } catch (err) {
+                console.warn('⚠️  [MongoDB] Failed to archive booking:', err.message);
+            }
         }
 
         this.addTimelineEvent(id, {
@@ -570,7 +650,7 @@ class BookingModel {
             user
         });
 
-        AuditModel.log({
+        await AuditModel.log({
             module: 'Booking Lifecycle',
             action: 'Booking Archived',
             targetId: id,
@@ -585,7 +665,7 @@ class BookingModel {
         return booking;
     }
 
-    static unarchive(id, user = 'Admin') {
+    static async unarchive(id, user = 'Admin') {
         const booking = this.findById(id);
         if (!booking) throw new Error('Booking not found.');
 
@@ -598,7 +678,11 @@ class BookingModel {
         booking.status = 'Confirmed';
 
         if (isConnected()) {
-            Booking.updateOne({ id }, { $set: { status: 'Confirmed' } }).catch(() => {});
+            try {
+                await Booking.updateOne({ id }, { $set: { status: 'Confirmed' } });
+            } catch (err) {
+                console.warn('⚠️  [MongoDB] Failed to restore booking:', err.message);
+            }
         }
 
         this.addTimelineEvent(id, {
@@ -608,7 +692,7 @@ class BookingModel {
             user
         });
 
-        AuditModel.log({
+        await AuditModel.log({
             module: 'Booking Lifecycle',
             action: 'Booking Unarchived',
             targetId: id,
@@ -623,7 +707,7 @@ class BookingModel {
         return booking;
     }
 
-    static cancel(id, user = 'Admin') {
+    static async cancel(id, user = 'Admin') {
         const booking = this.findById(id);
         if (!booking) return null;
 
@@ -631,7 +715,11 @@ class BookingModel {
         booking.status = 'Cancelled';
 
         if (isConnected()) {
-            Booking.updateOne({ id }, { $set: { status: 'Cancelled' } }).catch(() => {});
+            try {
+                await Booking.updateOne({ id }, { $set: { status: 'Cancelled' } });
+            } catch (err) {
+                console.warn('⚠️  [MongoDB] Failed to cancel booking:', err.message);
+            }
         }
 
         this.addTimelineEvent(id, {
@@ -641,7 +729,7 @@ class BookingModel {
             user
         });
 
-        AuditModel.log({
+        await AuditModel.log({
             module: 'Booking Lifecycle',
             action: 'Booking Cancelled',
             targetId: id,
@@ -656,7 +744,7 @@ class BookingModel {
         return booking;
     }
 
-    static uncancel(id, user = 'Admin') {
+    static async uncancel(id, user = 'Admin') {
         const booking = this.findById(id);
         if (!booking) throw new Error('Booking not found.');
 
@@ -669,7 +757,11 @@ class BookingModel {
         booking.status = 'Confirmed';
 
         if (isConnected()) {
-            Booking.updateOne({ id }, { $set: { status: 'Confirmed' } }).catch(() => {});
+            try {
+                await Booking.updateOne({ id }, { $set: { status: 'Confirmed' } });
+            } catch (err) {
+                console.warn('⚠️  [MongoDB] Failed to revert booking cancellation:', err.message);
+            }
         }
 
         this.addTimelineEvent(id, {
@@ -679,7 +771,7 @@ class BookingModel {
             user
         });
 
-        AuditModel.log({
+        await AuditModel.log({
             module: 'Booking Lifecycle',
             action: 'Cancellation Reverted',
             targetId: id,
@@ -694,7 +786,7 @@ class BookingModel {
         return booking;
     }
 
-    static delete(id, hasFinancialRecords = false) {
+    static async delete(id, hasFinancialRecords = false) {
         if (hasFinancialRecords) {
             throw new Error('This booking contains financial records and cannot be permanently deleted. You can Archive this booking instead.');
         }
@@ -705,12 +797,14 @@ class BookingModel {
         }
 
         if (isConnected()) {
-            Booking.deleteOne({ id }).catch(err => {
+            try {
+                await Booking.deleteOne({ id });
+            } catch (err) {
                 console.warn('⚠️  [MongoDB] Failed to delete booking:', err.message);
-            });
+            }
         }
 
-        AuditModel.log({
+        await AuditModel.log({
             module: 'Booking',
             action: 'Booking Permanently Deleted',
             targetId: id,
@@ -723,30 +817,305 @@ class BookingModel {
         return true;
     }
 
-    static getStats() {
-        const allBookings = this.findAll();
-        const today = new Date().toISOString().split('T')[0];
+    /**
+     * Staff Operations: Update specific requirement checklist items
+     */
+    static async updateRequirements(id, reqData = {}, user = 'Staff') {
+        const booking = await this.findById(id);
+        if (!booking) throw new Error('Booking not found.');
+
+        const currentReqs = booking.requirements || buildDefaultRequirements(booking);
+
+        const updatedReqs = {
+            ...currentReqs,
+            chairs: {
+                ...currentReqs.chairs,
+                ...(reqData.chairs || {})
+            },
+            sound: {
+                ...currentReqs.sound,
+                ...(reqData.sound || {})
+            },
+            lighting: {
+                ...currentReqs.lighting,
+                ...(reqData.lighting || {})
+            },
+            catering: {
+                ...currentReqs.catering,
+                ...(reqData.catering || {})
+            },
+            facultyNotes: reqData.facultyNotes !== undefined ? reqData.facultyNotes : currentReqs.facultyNotes
+        };
+
+        // Determine preparation status
+        const allItemsPrepared = (!updatedReqs.chairs.needed || updatedReqs.chairs.prepared) &&
+                                (!updatedReqs.sound.needed || updatedReqs.sound.prepared) &&
+                                (!updatedReqs.lighting.needed || updatedReqs.lighting.prepared) &&
+                                (!updatedReqs.catering.needed || updatedReqs.catering.prepared);
+
+        const anyItemPrepared = updatedReqs.chairs.prepared || updatedReqs.sound.prepared || 
+                                updatedReqs.lighting.prepared || updatedReqs.catering.prepared;
+
+        if (allItemsPrepared) {
+            updatedReqs.status = 'Ready';
+            if (!updatedReqs.preparedBy) {
+                updatedReqs.preparedBy = user;
+                updatedReqs.preparedAt = new Date().toISOString();
+            }
+        } else if (anyItemPrepared) {
+            updatedReqs.status = 'In Progress';
+        } else {
+            updatedReqs.status = reqData.status || currentReqs.status || 'Pending';
+        }
+
+        booking.requirements = updatedReqs;
+
+        if (isConnected()) {
+            await Booking.updateOne({ id }, { $set: { requirements: updatedReqs } }).catch(err => {
+                console.warn('⚠️  [MongoDB] Failed to update requirements:', err.message);
+            });
+        }
+
+        await this.addTimelineEvent(id, {
+            title: `Requirements Updated (${updatedReqs.status})`,
+            description: `Checklist updated by ${user}. Chairs: ${updatedReqs.chairs.prepared ? '✓ Ready' : 'Pending'}, Sound: ${updatedReqs.sound.prepared ? '✓ Ready' : 'Pending'}, Lighting: ${updatedReqs.lighting.prepared ? '✓ Ready' : 'Pending'}, Catering: ${updatedReqs.catering.prepared ? '✓ Ready' : 'Pending'}`,
+            category: 'General',
+            user
+        });
+
+        AuditModel.log({
+            module: 'Staff Operations',
+            action: 'Event Requirements Updated',
+            targetId: id,
+            changes: [
+                { field: 'Preparation Status', oldVal: currentReqs.status, newVal: updatedReqs.status }
+            ],
+            oldValue: `Status: ${currentReqs.status}`,
+            newValue: `Status: ${updatedReqs.status}, Staff: ${user}`,
+            user
+        });
+
+        return updatedReqs;
+    }
+
+    /**
+     * Staff Operations: One-click mark all setup requirements prepared
+     */
+    static async markPrepared(id, { user = 'Staff', notes = '' } = {}) {
+        const booking = await this.findById(id);
+        if (!booking) throw new Error('Booking not found.');
+
+        const currentReqs = booking.requirements || buildDefaultRequirements(booking);
+
+        const updatedReqs = {
+            ...currentReqs,
+            chairs: { ...currentReqs.chairs, prepared: true },
+            sound: { ...currentReqs.sound, prepared: true },
+            lighting: { ...currentReqs.lighting, prepared: true },
+            catering: { ...currentReqs.catering, prepared: true },
+            status: 'Ready',
+            preparedBy: user,
+            preparedAt: new Date().toISOString(),
+            facultyNotes: notes || currentReqs.facultyNotes
+        };
+
+        booking.requirements = updatedReqs;
+
+        if (isConnected()) {
+            await Booking.updateOne({ id }, { $set: { requirements: updatedReqs } }).catch(err => {
+                console.warn('⚠️  [MongoDB] Failed to mark prepared:', err.message);
+            });
+        }
+
+        await this.addTimelineEvent(id, {
+            title: 'Event Setup Marked Ready',
+            description: `All setup requirements (chairs, sound, lighting, catering) verified & prepared by ${user}.`,
+            category: 'Lifecycle',
+            user
+        });
+
+        AuditModel.log({
+            module: 'Staff Operations',
+            action: 'Hall Setup Marked Prepared',
+            targetId: id,
+            changes: [{ field: 'Requirements Status', oldVal: currentReqs.status, newVal: 'Ready' }],
+            oldValue: currentReqs.status,
+            newValue: 'Ready',
+            user
+        });
+
+        return updatedReqs;
+    }
+
+    /**
+     * Staff Operations: Acknowledge duty/task assignment
+     */
+    static async acknowledgeTask(id, { user = 'Staff', notes = '' } = {}) {
+        const booking = await this.findById(id);
+        if (!booking) throw new Error('Booking not found.');
+
+        const currentReqs = booking.requirements || buildDefaultRequirements(booking);
+        const now = new Date().toISOString();
+
+        const updatedReqs = {
+            ...currentReqs,
+            acknowledgedBy: user,
+            acknowledgedAt: now,
+            facultyNotes: notes || currentReqs.facultyNotes
+        };
+
+        booking.requirements = updatedReqs;
+
+        if (isConnected()) {
+            await Booking.updateOne({ id }, { $set: { requirements: updatedReqs } }).catch(err => {
+                console.warn('⚠️  [MongoDB] Failed to record task acknowledgment:', err.message);
+            });
+        }
+
+        await this.addTimelineEvent(id, {
+            title: 'Event Task Acknowledged',
+            description: `Duty assignment acknowledged by ${user} on ${now.split('T')[0]} at ${getFormattedTime()}.`,
+            category: 'General',
+            user
+        });
+
+        AuditModel.log({
+            module: 'Staff Operations',
+            action: 'Task Duty Acknowledged',
+            targetId: id,
+            changes: [{ field: 'Acknowledged By', oldVal: currentReqs.acknowledgedBy || 'None', newVal: user }],
+            oldValue: currentReqs.acknowledgedBy || 'None',
+            newValue: user,
+            user
+        });
+
+        return updatedReqs;
+    }
+
+    /**
+     * Staff Operations: Retrieve Safe Events (NO Financial / Commercial figures)
+     */
+    static async getFacultyEvents(filters = {}) {
+        const allBookings = await this.findAll();
+        const today = getFormattedDate(0);
+
+        let filtered = allBookings.filter(b => b.status !== 'Cancelled' && b.status !== 'Archived');
+
+        if (filters.type === 'today') {
+            const targetDate = filters.date || today;
+            filtered = filtered.filter(b => b.bookingDate === targetDate);
+        } else if (filters.type === 'upcoming') {
+            filtered = filtered.filter(b => b.bookingDate >= today);
+        } else if (filters.date) {
+            filtered = filtered.filter(b => b.bookingDate === filters.date);
+        }
+
+        if (filters.hall && filters.hall !== 'All') {
+            const hallQueries = filters.hall.split(',').map(h => h.trim().toLowerCase());
+            filtered = filtered.filter(b => hallQueries.includes((b.hall || '').toLowerCase()));
+        }
+
+        if (filters.shift && filters.shift !== 'all' && filters.shift !== 'All') {
+            filtered = filtered.filter(b => {
+                const shiftName = getShiftForTime(b.startTime);
+                return shiftName.toLowerCase() === filters.shift.toLowerCase();
+            });
+        }
+
+        if (filters.status && filters.status !== 'All') {
+            filtered = filtered.filter(b => {
+                const reqs = b.requirements || buildDefaultRequirements(b);
+                return (reqs.status || 'Pending').toLowerCase() === filters.status.toLowerCase();
+            });
+        }
+
+        if (filters.search && filters.search.trim()) {
+            const q = filters.search.trim().toLowerCase();
+            filtered = filtered.filter(b =>
+                (b.eventName || '').toLowerCase().includes(q) ||
+                (b.customerName || '').toLowerCase().includes(q) ||
+                (b.id || '').toLowerCase().includes(q) ||
+                (b.mobileNumber || '').includes(q) ||
+                (b.hall || '').toLowerCase().includes(q)
+            );
+        }
+
+        // Sort chronologically
+        filtered.sort((a, b) => {
+            const dateCmp = (a.bookingDate || '').localeCompare(b.bookingDate || '');
+            if (dateCmp !== 0) return dateCmp;
+            return (a.startTime || '').localeCompare(b.startTime || '');
+        });
+
+        // Strip ALL financial / pricing fields completely
+        return filtered.map(b => {
+            const reqs = b.requirements || buildDefaultRequirements(b);
+            return {
+                id: b.id,
+                customerName: b.customerName,
+                mobileNumber: b.mobileNumber,
+                eventName: b.eventName,
+                hall: b.hall,
+                bookingDate: b.bookingDate,
+                startTime: b.startTime,
+                endTime: b.endTime,
+                shift: getShiftForTime(b.startTime),
+                status: b.status,
+                notes: b.notes || '',
+                requirements: reqs,
+                timeline: (b.timeline || []).map(t => ({
+                    id: t.id,
+                    title: t.title,
+                    description: t.description,
+                    category: t.category,
+                    date: t.date,
+                    time: t.time,
+                    user: t.user
+                }))
+            };
+        });
+    }
+
+    static async getStats() {
+        const HallModel = require('./hallModel');
+        const allBookings = await this.findAll();
+        const halls = await HallModel.findAll();
+        const today = getFormattedDate(0);
 
         const todayBookings = allBookings.filter(b => b.bookingDate === today && b.status !== 'Cancelled' && b.status !== 'Archived');
         const upcomingBookings = allBookings.filter(b => b.bookingDate > today && b.status !== 'Cancelled' && b.status !== 'Archived');
         const activeBookings = allBookings.filter(b => b.status === 'Confirmed' || b.status === 'Booked');
 
-        const isHall1OccupiedToday = todayBookings.some(b => b.hall === 'Hall 1');
-        const isHall2OccupiedToday = todayBookings.some(b => b.hall === 'Hall 2');
+        const hall1Doc = halls.find(h => h.hallId === 'HALL-01' || h.name === 'Hall 1' || h.name === 'Small Hall');
+        const hall2Doc = halls.find(h => h.hallId === 'HALL-02' || h.name === 'Hall 2' || h.name === 'Big Hall');
+
+        const isSmallHallOccupiedToday = todayBookings.some(b => b.hall === 'Small Hall' || b.hall === 'Hall 1');
+        const isBigHallOccupiedToday = todayBookings.some(b => b.hall === 'Big Hall' || b.hall === 'Hall 2');
+
+        const getHallStatusLabel = (hallDoc, isOccupiedToday) => {
+            if (hallDoc && hallDoc.status === 'maintenance') return 'Under Maintenance';
+            if (isOccupiedToday) return 'Occupied';
+            return 'Ready for Booking';
+        };
+
+        const hall1Status = getHallStatusLabel(hall1Doc, isSmallHallOccupiedToday);
+        const hall2Status = getHallStatusLabel(hall2Doc, isBigHallOccupiedToday);
 
         return {
             totalBookings: allBookings.length,
             activeBookings: activeBookings.length,
             todayEvents: todayBookings.length,
             upcomingEvents: upcomingBookings.length,
-            hall1Status: isHall1OccupiedToday ? 'Occupied' : 'Available',
-            hall2Status: isHall2OccupiedToday ? 'Occupied' : 'Available'
+            smallHallStatus: hall1Status,
+            bigHallStatus: hall2Status,
+            hall1Status,
+            hall2Status
         };
     }
 
-    static getYearlyStats(filterYear = null) {
+    static async getYearlyStats(filterYear = null) {
         const PaymentModel = require('./paymentModel');
-        const allBookings = this.findAll();
+        const allBookings = await this.findAll();
 
         const baseYears = ['2023', '2024', '2025', '2026', '2027'];
         const bookingYears = allBookings.map(b => (b.bookingDate || '').split('-')[0]).filter(Boolean);
@@ -767,18 +1136,18 @@ class BookingModel {
                 pendingDues: 0,
                 hallBreakdown: {},
                 monthlyDistribution: [
-                    { monthIndex: 1, monthName: 'Jan', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
-                    { monthIndex: 2, monthName: 'Feb', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
-                    { monthIndex: 3, monthName: 'Mar', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
-                    { monthIndex: 4, monthName: 'Apr', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
-                    { monthIndex: 5, monthName: 'May', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
-                    { monthIndex: 6, monthName: 'Jun', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
-                    { monthIndex: 7, monthName: 'Jul', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
-                    { monthIndex: 8, monthName: 'Aug', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
-                    { monthIndex: 9, monthName: 'Sep', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
-                    { monthIndex: 10, monthName: 'Oct', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
-                    { monthIndex: 11, monthName: 'Nov', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
-                    { monthIndex: 12, monthName: 'Dec', totalEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 }
+                    { monthIndex: 1, monthName: 'Jan', totalEvents: 0, smallHallEvents: 0, bigHallEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 2, monthName: 'Feb', totalEvents: 0, smallHallEvents: 0, bigHallEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 3, monthName: 'Mar', totalEvents: 0, smallHallEvents: 0, bigHallEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 4, monthName: 'Apr', totalEvents: 0, smallHallEvents: 0, bigHallEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 5, monthName: 'May', totalEvents: 0, smallHallEvents: 0, bigHallEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 6, monthName: 'Jun', totalEvents: 0, smallHallEvents: 0, bigHallEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 7, monthName: 'Jul', totalEvents: 0, smallHallEvents: 0, bigHallEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 8, monthName: 'Aug', totalEvents: 0, smallHallEvents: 0, bigHallEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 9, monthName: 'Sep', totalEvents: 0, smallHallEvents: 0, bigHallEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 10, monthName: 'Oct', totalEvents: 0, smallHallEvents: 0, bigHallEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 11, monthName: 'Nov', totalEvents: 0, smallHallEvents: 0, bigHallEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 },
+                    { monthIndex: 12, monthName: 'Dec', totalEvents: 0, smallHallEvents: 0, bigHallEvents: 0, hall1Events: 0, hall2Events: 0, revenue: 0 }
                 ],
                 events: []
             };
@@ -812,7 +1181,11 @@ class BookingModel {
                 yData.pendingDues += remainingRent;
             }
 
-            const hallName = booking.hall || 'Other';
+            let rawHall = booking.hall || 'Small Hall';
+            if (rawHall === 'Hall 1') rawHall = 'Small Hall';
+            if (rawHall === 'Hall 2') rawHall = 'Big Hall';
+            const hallName = rawHall;
+
             if (!yData.hallBreakdown[hallName]) {
                 yData.hallBreakdown[hallName] = {
                     hallName,
@@ -842,8 +1215,13 @@ class BookingModel {
             if (monthIdx >= 1 && monthIdx <= 12) {
                 const mData = yData.monthlyDistribution[monthIdx - 1];
                 mData.totalEvents += 1;
-                if (hallName === 'Hall 1') mData.hall1Events += 1;
-                else if (hallName === 'Hall 2') mData.hall2Events += 1;
+                if (hallName === 'Small Hall' || hallName === 'Hall 1') {
+                    mData.smallHallEvents += 1;
+                    mData.hall1Events += 1;
+                } else if (hallName === 'Big Hall' || hallName === 'Hall 2') {
+                    mData.bigHallEvents += 1;
+                    mData.hall2Events += 1;
+                }
 
                 if (isEffectiveEvent) {
                     mData.revenue += netRentPaid;
@@ -911,12 +1289,12 @@ class BookingModel {
         };
     }
 
-    static getDaySlotStats(targetDate = null) {
+    static async getDaySlotStats(targetDate = null) {
         const PaymentModel = require('./paymentModel');
         const defaultDate = getFormattedDate(0);
         const selectedDate = (targetDate && typeof targetDate === 'string' && targetDate.trim()) ? targetDate.trim() : defaultDate;
 
-        const allBookings = this.findAll();
+        const allBookings = await this.findAll();
         const dateBookings = allBookings.filter(b => b.bookingDate === selectedDate);
 
         const getSlotKey = (timeStr) => {
@@ -949,7 +1327,7 @@ class BookingModel {
                 revenue: 0,
                 contractAmount: 0,
                 pendingDues: 0,
-                hallCounts: { 'Hall 1': 0, 'Hall 2': 0 },
+                hallCounts: { 'Small Hall': 0, 'Big Hall': 0, 'Hall 1': 0, 'Hall 2': 0 },
                 events: []
             },
             afternoon: {
@@ -968,7 +1346,7 @@ class BookingModel {
                 revenue: 0,
                 contractAmount: 0,
                 pendingDues: 0,
-                hallCounts: { 'Hall 1': 0, 'Hall 2': 0 },
+                hallCounts: { 'Small Hall': 0, 'Big Hall': 0, 'Hall 1': 0, 'Hall 2': 0 },
                 events: []
             },
             evening: {
@@ -987,7 +1365,7 @@ class BookingModel {
                 revenue: 0,
                 contractAmount: 0,
                 pendingDues: 0,
-                hallCounts: { 'Hall 1': 0, 'Hall 2': 0 },
+                hallCounts: { 'Small Hall': 0, 'Big Hall': 0, 'Hall 1': 0, 'Hall 2': 0 },
                 events: []
             },
             night: {
@@ -1006,14 +1384,16 @@ class BookingModel {
                 revenue: 0,
                 contractAmount: 0,
                 pendingDues: 0,
-                hallCounts: { 'Hall 1': 0, 'Hall 2': 0 },
+                hallCounts: { 'Small Hall': 0, 'Big Hall': 0, 'Hall 1': 0, 'Hall 2': 0 },
                 events: []
             }
         };
 
         const hallBreakdown = {
-            'Hall 1': { hallName: 'Hall 1', totalEvents: 0, morning: 0, afternoon: 0, evening: 0, night: 0, revenue: 0 },
-            'Hall 2': { hallName: 'Hall 2', totalEvents: 0, morning: 0, afternoon: 0, evening: 0, night: 0, revenue: 0 }
+            'Small Hall': { hallName: 'Small Hall', totalEvents: 0, morning: 0, afternoon: 0, evening: 0, night: 0, revenue: 0 },
+            'Big Hall': { hallName: 'Big Hall', totalEvents: 0, morning: 0, afternoon: 0, evening: 0, night: 0, revenue: 0 },
+            'Hall 1': { hallName: 'Small Hall', totalEvents: 0, morning: 0, afternoon: 0, evening: 0, night: 0, revenue: 0 },
+            'Hall 2': { hallName: 'Big Hall', totalEvents: 0, morning: 0, afternoon: 0, evening: 0, night: 0, revenue: 0 }
         };
 
         let totalEvents = 0;
@@ -1026,7 +1406,10 @@ class BookingModel {
             const slotKey = getSlotKey(booking.startTime);
             const slot = slots[slotKey];
             const fin = PaymentModel.getBookingFinancialSummary(booking.id) || {};
-            const hall = booking.hall || 'Hall 1';
+            let rawHall = booking.hall || 'Small Hall';
+            if (rawHall === 'Hall 1') rawHall = 'Small Hall';
+            if (rawHall === 'Hall 2') rawHall = 'Big Hall';
+            const hall = rawHall;
 
             totalEvents += 1;
             slot.count += 1;
@@ -1048,13 +1431,19 @@ class BookingModel {
             if (slot.hallCounts[hall] !== undefined) {
                 slot.hallCounts[hall] += 1;
             }
+            if (hall === 'Small Hall') slot.hallCounts['Hall 1'] += 1;
+            if (hall === 'Big Hall') slot.hallCounts['Hall 2'] += 1;
 
-            if (!hallBreakdown[hall]) {
-                hallBreakdown[hall] = { hallName: hall, totalEvents: 0, morning: 0, afternoon: 0, evening: 0, night: 0, revenue: 0 };
-            }
-            hallBreakdown[hall].totalEvents += 1;
-            if (hallBreakdown[hall][slotKey] !== undefined) {
-                hallBreakdown[hall][slotKey] += 1;
+            if (hall === 'Small Hall' || hall === 'Hall 1') {
+                hallBreakdown['Small Hall'].totalEvents += 1;
+                hallBreakdown['Hall 1'].totalEvents += 1;
+                if (hallBreakdown['Small Hall'][slotKey] !== undefined) hallBreakdown['Small Hall'][slotKey] += 1;
+                if (hallBreakdown['Hall 1'][slotKey] !== undefined) hallBreakdown['Hall 1'][slotKey] += 1;
+            } else if (hall === 'Big Hall' || hall === 'Hall 2') {
+                hallBreakdown['Big Hall'].totalEvents += 1;
+                hallBreakdown['Hall 2'].totalEvents += 1;
+                if (hallBreakdown['Big Hall'][slotKey] !== undefined) hallBreakdown['Big Hall'][slotKey] += 1;
+                if (hallBreakdown['Hall 2'][slotKey] !== undefined) hallBreakdown['Hall 2'][slotKey] += 1;
             }
 
             const isEffective = (booking.status !== 'Cancelled' && booking.status !== 'Archived');

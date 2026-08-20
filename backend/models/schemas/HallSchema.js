@@ -8,6 +8,7 @@ const hallSchema = new mongoose.Schema({
     basePricePerDay: { type: Number, default: 10000 },
     amenities: [{ type: String }],
     location: { type: String, default: 'Main Campus Building' },
+    status: { type: String, enum: ['available', 'booked', 'maintenance'], default: 'available' },
     isActive: { type: Boolean, default: true }
 }, {
     timestamps: true,

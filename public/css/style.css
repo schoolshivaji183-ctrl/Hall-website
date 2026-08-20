@@ -1,17 +1,33 @@
-/* Custom Design System & ERP Aesthetics for Hall Booking Management System */
+/* =========================================================================
+   Commercial ERP Custom Design System & Aesthetics
+   Hall Booking Management System
+   ========================================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 :root {
     --primary-color: #4f46e5;
     --primary-hover: #4338ca;
+    --primary-light: #eef2ff;
     --secondary-color: #0fb5c4;
     --dark-bg: #0f172a;
-    --sidebar-bg: #1e293b;
+    --sidebar-bg: #0f172a;
+    --sidebar-surface: #1e293b;
     --card-bg: #ffffff;
-    --text-primary: #1e293b;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
     --text-muted: #64748b;
     --border-color: #e2e8f0;
+    --border-color-subtle: #f1f5f9;
     --accent-hall1: #2563eb;
     --accent-hall2: #7c3aed;
+    --success-color: #10b981;
+    --warning-color: #f59e0b;
+    --danger-color: #ef4444;
+}
+
+*, *::before, *::after {
+    box-sizing: border-box;
 }
 
 body {
@@ -19,9 +35,39 @@ body {
     background-color: #f8fafc;
     color: var(--text-primary);
     overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
-/* Sidebar Styling */
+/* =========================================================================
+   1. GLOBAL FRACTIONAL SPACING & CUSTOM UTILITIES
+   ========================================================================= */
+.p-1\.5 { padding: 0.375rem !important; }
+.p-2\.5 { padding: 0.625rem !important; }
+.px-2\.5 { padding-left: 0.625rem !important; padding-right: 0.625rem !important; }
+.py-1\.5 { padding-top: 0.375rem !important; padding-bottom: 0.375rem !important; }
+.gap-1\.5 { gap: 0.375rem !important; }
+.gap-2\.5 { gap: 0.625rem !important; }
+.max-w-200 { max-width: 200px !important; }
+.max-w-250 { max-width: 250px !important; }
+.max-w-300 { max-width: 300px !important; }
+.shadow-2xs { box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important; }
+.shadow-xs { box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px -1px rgba(0, 0, 0, 0.08) !important; }
+
+/* Purple Utility Classes */
+.bg-purple-subtle { background-color: #f3e8ff !important; }
+.text-purple { color: #7c3aed !important; }
+.border-purple-subtle { border-color: #d8b4fe !important; }
+
+/* =========================================================================
+   2. APP WRAPPER & SIDEBAR NAVIGATION
+   ========================================================================= */
+#wrapper {
+    min-height: 100vh;
+    display: flex;
+    width: 100%;
+}
+
 #sidebar-wrapper {
     min-height: 100vh;
     width: 260px;
@@ -31,17 +77,61 @@ body {
     transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 1000;
     flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 #sidebar-wrapper.toggled {
     margin-left: -260px;
 }
 
+#sidebar-wrapper .sidebar-heading {
+    padding: 1.25rem 1.25rem;
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+#sidebar-wrapper .list-group-item {
+    padding: 0.75rem 1.15rem;
+    color: #94a3b8;
+    background-color: transparent;
+    border: none;
+    font-weight: 500;
+    font-size: 0.9rem;
+    border-radius: 8px;
+    margin: 3px 10px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+#sidebar-wrapper .list-group-item i {
+    font-size: 1.1rem;
+    width: 20px;
+    text-align: center;
+}
+
+#sidebar-wrapper .list-group-item:hover {
+    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+#sidebar-wrapper .list-group-item.active {
+    color: #ffffff;
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
+}
+
 #page-content-wrapper {
     min-width: 0;
     flex: 1;
     width: 100%;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+    background-color: #f8fafc;
 }
 
 @media (max-width: 768px) {
@@ -57,94 +147,160 @@ body {
     }
 }
 
-/* Status Select Dropdown styling in Cards & Schedule Widgets */
-.status-select-control {
-    font-size: 0.78rem;
-    font-weight: 600;
-    padding: 0.25rem 0.6rem;
-    border-radius: 20px;
-    border: 1px solid var(--border-color);
-    background-color: #ffffff;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-}
-
-.status-select-control:focus {
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 0.2rem rgba(79, 70, 229, 0.15);
-    outline: none;
-}
-
-.status-select-control.status-Confirmed { background-color: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
-.status-select-control.status-Completed { background-color: #f1f5f9; color: #475569; border-color: #cbd5e1; }
-.status-select-control.status-Cancelled { background-color: #fef2f2; color: #b91c1c; border-color: #fca5a5; }
-.status-select-control.status-Archived { background-color: #fefce8; color: #a16207; border-color: #fef08a; }
-.status-select-control.status-Draft { background-color: #f3e8ff; color: #6b21a8; border-color: #d8b4fe; }
-
-#sidebar-wrapper .sidebar-heading {
-    padding: 1.5rem 1.25rem;
-    font-size: 1.2rem;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-#sidebar-wrapper .list-group-item {
-    padding: 0.85rem 1.25rem;
-    color: #94a3b8;
-    background-color: transparent;
-    border: none;
-    font-weight: 500;
-    border-radius: 8px;
-    margin: 4px 12px;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-#sidebar-wrapper .list-group-item:hover,
-#sidebar-wrapper .list-group-item.active {
-    color: #ffffff;
-    background-color: rgba(255, 255, 255, 0.1);
-}
-
-#sidebar-wrapper .list-group-item.active {
-    background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
-    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
-}
-
-/* Top Navigation Bar */
+/* =========================================================================
+   3. TOP NAVIGATION BAR & USER PROFILE BADGE
+   ========================================================================= */
 .navbar-custom {
     background-color: #ffffff;
     border-bottom: 1px solid var(--border-color);
-    padding: 0.85rem 1.5rem;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+    padding: 0.65rem 1.25rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+    min-height: 62px;
+    z-index: 990;
 }
 
-/* Stats Cards */
-.stat-card {
-    border: none;
-    border-radius: 16px;
+.user-profile-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px;
+    background-color: #f8fafc;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+.user-profile-badge i {
+    font-size: 1.35rem;
+}
+
+.nav-role-badge {
+    font-size: 0.72rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 9999px;
+    font-weight: 700;
+}
+
+/* =========================================================================
+   4. DASHBOARD & VIEW HEADER BANNERS
+   ========================================================================= */
+.compact-summary-banner {
     background: #ffffff;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 0.9rem 1.25rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+    margin-bottom: 1.25rem;
+}
+
+.compact-summary-banner h6 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.compact-stat-box {
+    padding: 6px 12px;
+    border-radius: 8px;
+    background-color: #ffffff;
+    border: 1px solid #f1f5f9;
+}
+
+#btn-refresh-dashboard,
+#btn-refresh-overall-summary,
+#btn-refresh-yearly-events,
+#btn-refresh-faculty-today,
+#btn-refresh-faculty-upcoming {
+    transition: all 0.2s ease-in-out;
+    border-radius: 8px;
+    font-weight: 500;
+}
+
+#btn-refresh-dashboard:hover,
+#btn-refresh-overall-summary:hover,
+#btn-refresh-yearly-events:hover,
+#btn-refresh-faculty-today:hover,
+#btn-refresh-faculty-upcoming:hover {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    color: #ffffff;
+}
+
+/* =========================================================================
+   5. STATS & OPERATIONAL CARDS (CONTAINED & OVERFLOW-SAFE)
+   ========================================================================= */
+.stat-card {
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    background: #ffffff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    min-width: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }
 
 .stat-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.07);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+    border-color: #cbd5e1;
 }
 
-.stat-icon {
-    width: 52px;
-    height: 52px;
-    border-radius: 14px;
+.stat-card > div,
+.stat-card .d-flex {
+    min-width: 0;
+    width: 100%;
+}
+
+.stat-card .stat-content,
+.stat-card .stat-info,
+.stat-card .d-flex > div:not(.stat-icon):not(.stat-icon-box):not(.rounded-3) {
+    flex: 1 1 0%;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.stat-card .stat-label,
+.stat-card span.text-muted {
+    display: block;
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    line-height: 1.3;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.stat-card .stat-value,
+.stat-card h3,
+.stat-card h4,
+.stat-card h5 {
+    font-weight: 700;
+    line-height: 1.2;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text-primary);
+}
+
+.stat-card h3, .stat-card .stat-value-lg { font-size: clamp(1.2rem, 1.4vw, 1.45rem); }
+.stat-card h4, .stat-card .stat-value-md { font-size: clamp(1.05rem, 1.25vw, 1.25rem); }
+.stat-card h5, .stat-card .stat-value-sm { font-size: clamp(0.95rem, 1.1vw, 1.1rem); }
+
+.stat-icon,
+.stat-icon-box {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.5rem;
+    font-size: 1.3rem;
+    flex-shrink: 0;
 }
 
 .icon-blue { background-color: rgba(59, 130, 246, 0.12); color: #2563eb; }
@@ -152,28 +308,29 @@ body {
 .icon-purple { background-color: rgba(139, 92, 246, 0.12); color: #7c3aed; }
 .icon-amber { background-color: rgba(245, 158, 11, 0.12); color: #d97706; }
 
-/* Status Badges */
+/* =========================================================================
+   6. STATUS & PAYMENT BADGES
+   ========================================================================= */
 .badge-status {
-    padding: 6px 12px;
+    padding: 5px 11px;
     border-radius: 20px;
     font-weight: 600;
-    font-size: 0.78rem;
+    font-size: 0.76rem;
     display: inline-block;
 }
 
 .badge-status.Draft { background-color: #fef3c7; color: #92400e; }
 .badge-status.Booked { background-color: #e0f2fe; color: #0369a1; }
 .badge-status.Confirmed { background-color: #d1fae5; color: #065f46; }
-.badge-status.Completed { background-color: #f3f4f6; color: #374151; }
+.badge-status.Completed { background-color: #f1f5f9; color: #334155; }
 .badge-status.Cancelled { background-color: #fee2e2; color: #991b1b; }
 .badge-status.Archived { background-color: #e2e8f0; color: #475569; }
 
-/* Payment Status Badges */
 .badge-pay {
-    padding: 5px 12px;
+    padding: 5px 11px;
     border-radius: 20px;
     font-weight: 600;
-    font-size: 0.78rem;
+    font-size: 0.76rem;
     display: inline-block;
 }
 
@@ -186,12 +343,11 @@ body {
 .badge-pay.Cancelled { background-color: #f1f5f9; color: #64748b; }
 .badge-pay.Archived { background-color: #e2e8f0; color: #475569; }
 
-/* Deposit Status Badges */
 .badge-dep {
-    padding: 4px 10px;
-    border-radius: 12px;
+    padding: 4px 9px;
+    border-radius: 10px;
     font-weight: 600;
-    font-size: 0.75rem;
+    font-size: 0.74rem;
     display: inline-block;
 }
 .badge-dep.Deposit-Pending { background-color: #fff7ed; color: #c2410c; }
@@ -201,59 +357,286 @@ body {
 .badge-dep.Deposit-Adjusted { background-color: #e0e7ff; color: #3730a3; }
 .badge-dep.N\/A { background-color: #f1f5f9; color: #94a3b8; }
 
-/* Purple Utility Classes */
-.bg-purple-subtle { background-color: #ede9fe !important; }
-.text-purple { color: #5b21b6 !important; }
-.border-purple-subtle { border-color: #c4b5fd !important; }
-
-/* Transaction Type Badges */
-.badge-txn-type {
-    padding: 4px 10px;
-    border-radius: 6px;
-    font-weight: 600;
-    font-size: 0.76rem;
-    display: inline-block;
-}
-.badge-txn-deposit {
-    background-color: #ede9fe !important;
-    color: #5b21b6 !important;
-    border: 1px solid #c4b5fd !important;
-}
-.badge-txn-advance {
-    background-color: #e0f2fe !important;
-    color: #0369a1 !important;
-    border: 1px solid #bae6fd !important;
-}
-.badge-txn-rent {
-    background-color: #dcfce7 !important;
-    color: #15803d !important;
-    border: 1px solid #bbf7d0 !important;
-}
-.badge-txn-refund {
-    background-color: #fee2e2 !important;
-    color: #b91c1c !important;
-    border: 1px solid #fecaca !important;
-}
-
-/* Hall Badges */
 .hall-pill {
     font-weight: 600;
     padding: 4px 10px;
     border-radius: 6px;
     font-size: 0.8rem;
 }
+.hall-pill.hall-1, .hall-pill.small-hall { background-color: #e0f2fe; color: #0369a1; }
+.hall-pill.hall-2, .hall-pill.big-hall { background-color: #f3e8ff; color: #6b21a8; }
 
-.hall-pill.hall-1 {
-    background-color: #e0f2fe;
-    color: #0369a1;
+/* Status Select Dropdown in Cards & Lists */
+.status-select-control {
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 0.25rem 0.6rem;
+    border-radius: 20px;
+    border: 1px solid var(--border-color);
+    background-color: #ffffff;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.status-select-control:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(79, 70, 229, 0.15);
+    outline: none;
+}
+.status-select-control.status-Confirmed { background-color: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.status-select-control.status-Completed { background-color: #f1f5f9; color: #475569; border-color: #cbd5e1; }
+.status-select-control.status-Cancelled { background-color: #fef2f2; color: #b91c1c; border-color: #fca5a5; }
+.status-select-control.status-Archived { background-color: #fefce8; color: #a16207; border-color: #fef08a; }
+.status-select-control.status-Draft { background-color: #f3e8ff; color: #6b21a8; border-color: #d8b4fe; }
+
+/* Transaction Type Badges */
+.badge-txn-type {
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.75rem;
+    display: inline-block;
+}
+.badge-txn-deposit { background-color: #f3e8ff; color: #6b21a8; border: 1px solid #d8b4fe; }
+.badge-txn-advance { background-color: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+.badge-txn-rent { background-color: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+.badge-txn-refund { background-color: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+
+/* =========================================================================
+   7. TABLES & DATA LISTINGS
+   ========================================================================= */
+.table-custom {
+    vertical-align: middle;
 }
 
-.hall-pill.hall-2 {
-    background-color: #f3e8ff;
-    color: #6b21a8;
+.table-custom th {
+    background-color: #f8fafc;
+    color: #475569;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 700;
+    border-bottom: 1px solid var(--border-color);
+    padding: 0.85rem 0.75rem;
 }
 
-/* Vertical Timeline Stepper */
+.table-custom td {
+    padding: 0.9rem 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.table-hover tbody tr:hover {
+    background-color: #f8fafc;
+}
+
+.table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 10px;
+    min-width: 0;
+}
+
+.table th, .table td {
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+.table th.text-wrap, .table td.text-wrap {
+    white-space: normal;
+}
+
+.card {
+    min-width: 0;
+    word-wrap: break-word;
+}
+
+canvas {
+    max-width: 100% !important;
+}
+
+.booking-filters-card .form-control,
+.booking-filters-card .form-select,
+.booking-filters-card .btn {
+    min-height: 38px;
+    border-radius: 8px;
+}
+
+.table .dropdown-menu {
+    max-height: 75vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-width: 220px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05) !important;
+    z-index: 1050;
+}
+
+.table .dropdown-menu::-webkit-scrollbar {
+    width: 5px;
+}
+.table .dropdown-menu::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+}
+
+.table .dropdown-item {
+    font-size: 0.85rem;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    transition: all 0.15s ease;
+}
+
+/* =========================================================================
+   8. STAFF OPERATIONS & TASK CHECKLISTS
+   ========================================================================= */
+.faculty-event-card {
+    background: #ffffff;
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.faculty-event-card:hover {
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+    border-color: #cbd5e1;
+}
+
+.faculty-event-card.ready-card {
+    border-left: 5px solid #10b981;
+}
+
+.faculty-event-card.progress-card {
+    border-left: 5px solid #3b82f6;
+}
+
+.faculty-event-card.pending-card {
+    border-left: 5px solid #f59e0b;
+}
+
+.req-box {
+    background-color: #f8fafc;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 0.75rem;
+    transition: all 0.2s ease;
+}
+
+.req-box:hover {
+    background-color: #ffffff;
+    border-color: #cbd5e1;
+}
+
+.req-box.req-prepared {
+    background-color: #f0fdf4;
+    border-color: #bbf7d0;
+}
+
+.req-box .form-check-input {
+    cursor: pointer;
+    width: 1.15rem;
+    height: 1.15rem;
+}
+
+.req-box .form-check-input:checked {
+    background-color: #10b981;
+    border-color: #10b981;
+}
+
+.req-icon-circle {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 0.95rem;
+}
+
+.badge-shift-morning {
+    background-color: #fffbeb;
+    color: #b45309;
+    border: 1px solid #fde68a;
+}
+.badge-shift-afternoon {
+    background-color: #eff6ff;
+    color: #1d4ed8;
+    border: 1px solid #bfdbfe;
+}
+.badge-shift-evening {
+    background-color: #f5f3ff;
+    color: #6d28d9;
+    border: 1px solid #ddd6fe;
+}
+.badge-shift-night {
+    background-color: #f1f5f9;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+}
+
+/* =========================================================================
+   9. AUTHENTICATION & LOGIN VIEW
+   ========================================================================= */
+#auth-view {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at 10% 20%, rgb(248, 250, 252) 0%, rgb(226, 232, 240) 90%);
+    z-index: 9999;
+    overflow-y: auto;
+}
+
+.auth-card {
+    border-radius: 20px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 20px 40px -15px rgba(15, 23, 42, 0.15);
+    background: #ffffff;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.auth-header {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.auth-card .form-control {
+    padding: 0.7rem 0.95rem;
+    font-size: 0.95rem;
+    border-radius: 8px;
+    border-color: #cbd5e1;
+}
+
+.auth-card .form-control:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+}
+
+.auth-card .input-group-text {
+    border-color: #cbd5e1;
+    border-radius: 8px 0 0 8px;
+}
+
+/* =========================================================================
+   10. MODALS, TIMELINES & DIFF AUDIT CARDS
+   ========================================================================= */
+.modal-content {
+    border-radius: 16px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
+}
+
+.modal-header {
+    border-bottom: 1px solid var(--border-color);
+    padding: 1rem 1.5rem;
+}
+
+.modal-footer {
+    border-top: 1px solid var(--border-color);
+    padding: 1rem 1.5rem;
+}
+
 .timeline-v-stepper {
     position: relative;
     padding-left: 28px;
@@ -297,175 +680,12 @@ body {
     border: 1px solid #e2e8f0;
 }
 
-/* Data Table Customization */
-.table-custom {
-    vertical-align: middle;
-}
-
-.table-custom th {
-    background-color: #f8fafc;
-    color: #64748b;
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    font-weight: 700;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.table-custom td {
-    padding: 1rem 0.75rem;
-}
-
-/* Toast Notifications */
-.toast-container {
-    z-index: 1100;
-}
-
-/* Receipt Print & Void Watermark Styling */
-.receipt-void-watermark {
-    position: absolute;
-    top: 35%;
-    left: 15%;
-    right: 15%;
-    transform: rotate(-25deg);
-    font-size: 4rem;
-    font-weight: 900;
-    color: rgba(239, 68, 68, 0.25);
-    border: 8px dashed rgba(239, 68, 68, 0.3);
-    text-align: center;
-    padding: 15px;
-    text-transform: uppercase;
-    letter-spacing: 6px;
-    pointer-events: none;
-}
-
-@media print {
-    body * {
-        visibility: hidden;
-    }
-    #receiptModal, #receiptModal * {
-        visibility: visible;
-    }
-    #receiptModal {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-    }
-    .modal-footer, .btn-close {
-        display: none !important;
-    }
-}
-
-@media (max-width: 768px) {
-    #sidebar-wrapper {
-        margin-left: -260px;
-    }
-    #sidebar-wrapper.toggled {
-        margin-left: 0;
-    }
-}
-
-/* Booking List Action Dropdown Menu Viewport & Scrollbar Enhancements */
-.table-responsive {
-    position: relative;
-}
-
-.table .dropdown-menu {
-    max-height: 75vh;
-    overflow-y: auto;
-    overflow-x: hidden;
-    min-width: 220px;
-    border-radius: 12px;
-    border: 1px solid var(--border-color);
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05) !important;
-    z-index: 1050;
-}
-
-.table .dropdown-menu::-webkit-scrollbar {
-    width: 5px;
-}
-
-.table .dropdown-menu::-webkit-scrollbar-track {
-    background: #f1f5f9;
-    border-radius: 10px;
-}
-
-.table .dropdown-menu::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 10px;
-}
-
-.table .dropdown-menu::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
-}
-
-.table .dropdown-item {
-    font-size: 0.85rem;
-    padding: 0.55rem 1rem;
-    font-weight: 500;
-    transition: all 0.15s ease;
-}
-
-.table .dropdown-item:hover {
-    background-color: #f1f5f9;
-}
-
-/* Compact Modal & Tab Layout Cleanup */
-#viewBookingModal .modal-body {
-    padding: 1.25rem !important;
-}
-
-#viewBookingModal .nav-tabs-custom {
-    border-bottom: 2px solid var(--border-color);
-}
-
-#viewBookingModal .nav-tabs-custom .nav-link {
-    padding: 0.45rem 0.9rem;
-    font-size: 0.85rem;
-    color: var(--text-muted);
-    border: none;
-    border-bottom: 2px solid transparent;
-}
-
-#viewBookingModal .nav-tabs-custom .nav-link.active {
-    color: var(--primary-color);
-    border-bottom-color: var(--primary-color);
-    background: transparent;
-}
-
-#viewBookingModal .tab-pane {
-    padding-top: 0.5rem !important;
-}
-
-#viewBookingModal .card {
-    transition: none;
-}
-
-#viewBookingModal .table-sm th,
-#viewBookingModal .table-sm td {
-    padding: 0.4rem 0.6rem !important;
-    font-size: 0.82rem;
-}
-
-#viewBookingModal h6 {
-    margin-bottom: 0.5rem !important;
-}
-
-/* Compact Git Diff & Timeline Spacing Enhancements */
 .git-diff-card {
     border-radius: 8px;
     padding: 6px 10px !important;
-    margin-bottom: 0 !important;
-}
-
-.git-diff-card .diff-header {
     margin-bottom: 4px !important;
-    padding-bottom: 2px !important;
-}
-
-.git-diff-card .diff-block {
-    margin-bottom: 4px !important;
+    background-color: #ffffff;
+    border: 1px solid var(--border-color);
 }
 
 .git-diff-card .diff-line {
@@ -474,143 +694,10 @@ body {
     font-size: 0.72rem !important;
 }
 
-.compact-summary-banner {
-    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 10px 14px;
-}
-
-.compact-stat-box {
-    padding: 6px 12px;
-    border-radius: 8px;
-    background-color: #ffffff;
-    border: 1px solid #f1f5f9;
-}
-
-.compact-timeline-card {
-    padding: 8px 12px !important;
-    margin-bottom: 6px !important;
-}
-
-/* Dashboard Header & Metric Card Grid Enhancements */
-#btn-refresh-dashboard {
-    transition: all 0.2s ease-in-out;
-    border-radius: 8px;
-    font-weight: 500;
-}
-
-#btn-refresh-dashboard:hover {
-    transform: rotate(15deg);
-    background-color: var(--primary-color);
-    color: #ffffff;
-}
-
-.stat-card.h-100 {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-}
-
-/* Compact, stable layout while Booking List results are refreshed. */
-.booking-filters-card .form-control,
-.booking-filters-card .form-select,
-.booking-filters-card .btn {
-    min-height: 38px;
-}
-
-#view-bookings .table-responsive {
-    min-height: 120px;
-}
-
-/* Action Toolbar — Consistent alignment for Refund, Revert, Manage Deposit, etc. */
-#viewBookingModal .action-toolbar,
-#viewBookingModal .d-flex.flex-wrap.gap-2 {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-    align-items: center;
-}
-
-#viewBookingModal .action-toolbar .btn,
-#viewBookingModal .d-flex.flex-wrap.gap-2 .btn {
-    white-space: nowrap;
-    font-size: 0.82rem;
-    padding: 0.3rem 0.7rem;
-}
-
-/* Tighter Extra Charges & Discounts Itemization */
-#viewBookingModal .vstack.gap-2 {
-    gap: 0.4rem !important;
-}
-
-#viewBookingModal .vstack.gap-2 > .d-flex {
-    padding: 0.4rem 0.6rem !important;
-}
-
-#viewBookingModal .vstack.gap-2 > .d-flex .btn-sm {
-    padding: 0.15rem 0.5rem;
-    font-size: 0.75rem;
-}
-
-/* Audit Diff Cards — consistent padding */
-.git-diff-card {
-    padding: 6px 10px !important;
-    margin-bottom: 4px !important;
-}
-
-.git-diff-card .diff-block {
-    margin-bottom: 3px !important;
-}
-
-/* Timeline Tab — Compact card spacing */
-.compact-timeline-card {
-    padding: 8px 12px !important;
-    margin-bottom: 4px !important;
-}
-
-.compact-timeline-card .d-flex {
-    gap: 0.35rem;
-}
-
-/* Responsive: Stack modal toolbar vertically on mobile */
-@media (max-width: 767.98px) {
-    #viewBookingModal .row.g-2.align-items-center > .col-12.col-md-7 {
-        text-align: start !important;
-    }
-
-    #viewBookingModal .d-flex.flex-wrap.gap-2.justify-content-md-end {
-        justify-content: flex-start !important;
-    }
-
-    #viewBookingModal .d-flex.flex-wrap.gap-2 .btn {
-        flex: 1 1 calc(50% - 0.4rem);
-        text-align: center;
-    }
-
-    /* Compact summary banner adjustments for small screens */
-    .compact-summary-banner {
-        padding: 8px 10px;
-    }
-
-    .compact-stat-box {
-        padding: 4px 8px;
-    }
-
-    /* Modal body padding adjustment */
-    #viewBookingModal .modal-body {
-        padding: 0.75rem !important;
-    }
-}
-
-/* =========================================================================
-   YEARLY EVENTS & ANALYTICS STYLING
-   ========================================================================= */
 .yearly-chart-card {
     transition: transform 0.2s ease, box-shadow 0.2s ease;
     background: #ffffff;
 }
-
 .yearly-chart-card:hover {
     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.03) !important;
 }
@@ -633,8 +720,9 @@ body {
     font-size: 0.95rem;
 }
 
-#yearly-monthly-table-body td, #yearly-comparison-table-body td {
-    padding: 0.6rem 0.75rem;
+#yearly-monthly-table-body td,
+#yearly-comparison-table-body td {
+    padding: 0.65rem 0.75rem;
     vertical-align: middle;
 }
 
@@ -648,7 +736,8 @@ body {
     background-color: #f8fafc;
 }
 
-#year-ledger-monthly-table-body td, #year-ledger-events-table-body td {
+#year-ledger-monthly-table-body td,
+#year-ledger-events-table-body td {
     padding: 0.6rem 0.75rem;
     vertical-align: middle;
 }
@@ -657,73 +746,37 @@ body {
     background-color: rgba(2, 132, 199, 0.08) !important;
 }
 
-@media print {
-    body * {
-        visibility: hidden;
-    }
-    #year-ledger-printable-content, #year-ledger-printable-content * {
-        visibility: visible;
-    }
-    #year-ledger-printable-content {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-    }
-}
-
-/* =========================================================================
-   DAY SLOT EVENTS STYLING
-   ========================================================================= */
+/* Day Slot Events Cards & Badges */
 .slot-summary-card {
     transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
     border: 2px solid transparent !important;
     cursor: pointer;
+    border-radius: 12px;
 }
-
 .slot-summary-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.08) !important;
 }
-
-.slot-summary-card.active-slot-morning {
-    border-color: #f59e0b !important;
-    background-color: #fffdf5 !important;
-}
-
-.slot-summary-card.active-slot-afternoon {
-    border-color: #3b82f6 !important;
-    background-color: #f0f7ff !important;
-}
-
-.slot-summary-card.active-slot-evening {
-    border-color: #8b5cf6 !important;
-    background-color: #f8f6ff !important;
-}
-
-.slot-summary-card.active-slot-night {
-    border-color: #475569 !important;
-    background-color: #f8fafc !important;
-}
+.slot-summary-card.active-slot-morning { border-color: #f59e0b !important; background-color: #fffdf5 !important; }
+.slot-summary-card.active-slot-afternoon { border-color: #3b82f6 !important; background-color: #f0f7ff !important; }
+.slot-summary-card.active-slot-evening { border-color: #8b5cf6 !important; background-color: #f8f6ff !important; }
+.slot-summary-card.active-slot-night { border-color: #475569 !important; background-color: #f8fafc !important; }
 
 .slot-badge-morning {
     background-color: #fffbeb;
     color: #b45309;
     border: 1px solid #fde68a;
 }
-
 .slot-badge-afternoon {
     background-color: #eff6ff;
     color: #1d4ed8;
     border: 1px solid #bfdbfe;
 }
-
 .slot-badge-evening {
     background-color: #f5f3ff;
     color: #6d28d9;
     border: 1px solid #ddd6fe;
 }
-
 .slot-badge-night {
     background-color: #f1f5f9;
     color: #334155;
@@ -747,4 +800,108 @@ body {
 .spin-animation {
     display: inline-block;
     animation: spin 0.6s linear infinite;
+}
+
+/* Action Toolbar — Consistent alignment for Refund, Revert, Manage Deposit, etc. */
+#viewBookingModal .action-toolbar,
+#viewBookingModal .d-flex.flex-wrap.gap-2 {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    align-items: center;
+}
+
+#viewBookingModal .action-toolbar .btn,
+#viewBookingModal .d-flex.flex-wrap.gap-2 .btn {
+    white-space: nowrap;
+    font-size: 0.82rem;
+    padding: 0.35rem 0.75rem;
+}
+
+/* Tighter Extra Charges & Discounts Itemization */
+#viewBookingModal .vstack.gap-2 {
+    gap: 0.45rem !important;
+}
+
+#viewBookingModal .vstack.gap-2 > .d-flex {
+    padding: 0.45rem 0.65rem !important;
+}
+
+#viewBookingModal .vstack.gap-2 > .d-flex .btn-sm {
+    padding: 0.2rem 0.55rem;
+    font-size: 0.75rem;
+}
+
+.compact-timeline-card {
+    padding: 8px 12px !important;
+    margin-bottom: 5px !important;
+}
+
+.compact-timeline-card .d-flex {
+    gap: 0.35rem;
+}
+
+/* Responsive: Stack modal toolbar vertically on mobile */
+@media (max-width: 767.98px) {
+    #viewBookingModal .row.g-2.align-items-center > .col-12.col-md-7 {
+        text-align: start !important;
+    }
+
+    #viewBookingModal .d-flex.flex-wrap.gap-2.justify-content-md-end {
+        justify-content: flex-start !important;
+    }
+
+    #viewBookingModal .d-flex.flex-wrap.gap-2 .btn {
+        flex: 1 1 calc(50% - 0.45rem);
+        text-align: center;
+    }
+
+    .compact-summary-banner {
+        padding: 0.75rem 1rem;
+    }
+
+    .compact-stat-box {
+        padding: 4px 8px;
+    }
+
+    #viewBookingModal .modal-body {
+        padding: 0.85rem !important;
+    }
+}
+
+/* Receipt Print & Void Watermark */
+.receipt-void-watermark {
+    position: absolute;
+    top: 35%;
+    left: 15%;
+    right: 15%;
+    transform: rotate(-25deg);
+    font-size: 4rem;
+    font-weight: 900;
+    color: rgba(239, 68, 68, 0.25);
+    border: 8px dashed rgba(239, 68, 68, 0.3);
+    text-align: center;
+    padding: 15px;
+    text-transform: uppercase;
+    letter-spacing: 6px;
+    pointer-events: none;
+}
+
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    #receiptModal, #receiptModal *,
+    #year-ledger-printable-content, #year-ledger-printable-content * {
+        visibility: visible;
+    }
+    #receiptModal, #year-ledger-printable-content {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+    }
+    .modal-footer, .btn-close {
+        display: none !important;
+    }
 }

@@ -21,34 +21,117 @@
 </head>
 <body>
 
+<!-- ========================================== -->
+<!-- DEDICATED AUTHENTICATION & LOGIN VIEW -->
+<!-- ========================================== -->
+<div id="auth-view" class="d-none min-vh-100 d-flex align-items-center justify-content-center bg-light p-3">
+    <div class="auth-card card border-0 shadow-lg rounded-4 overflow-hidden" style="max-width: 440px; width: 100%;">
+        <div class="auth-header p-4 text-center text-white" style="background: linear-gradient(135deg, #1e293b 0%, #1e1b4b 50%, #4338ca 100%);">
+            <div class="d-inline-flex p-3 bg-white bg-opacity-10 rounded-circle mb-3 border border-white border-opacity-25 shadow-sm">
+                <i class="bi bi-building-gear fs-2 text-white"></i>
+            </div>
+            <h4 class="fw-bold mb-1">Hall Booking ERP</h4>
+            <p class="text-white-50 small mb-0">Management & Facility Scheduling System</p>
+            <div class="mt-3">
+                <span class="badge px-3 py-1.5 rounded-pill shadow-xs" id="auth-portal-badge" style="background: rgba(255,255,255,0.2); font-size: 0.82rem; letter-spacing: 0.5px;">
+                    <i class="bi bi-shield-lock me-1"></i>Admin Portal Sign In
+                </span>
+            </div>
+        </div>
+        
+        <div class="card-body p-4 p-sm-5 bg-white">
+            <!-- Error Alert -->
+            <div class="alert alert-danger d-none align-items-center gap-2 small py-2.5 px-3 mb-3 rounded-3" id="auth-error-alert" role="alert">
+                <i class="bi bi-exclamation-octagon-fill text-danger fs-5 flex-shrink-0"></i>
+                <span id="auth-error-message">Invalid username or password.</span>
+            </div>
+
+            <!-- Login Form -->
+            <form id="mainLoginForm">
+                <div class="mb-3">
+                    <label for="auth-input-username" class="form-label fw-semibold small text-muted">Username</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-person text-muted"></i></span>
+                        <input type="text" class="form-control border-start-0 ps-0" id="auth-input-username" placeholder="Enter username" required autocomplete="username">
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label for="auth-input-password" class="form-label fw-semibold small text-muted">Password</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-key text-muted"></i></span>
+                        <input type="password" class="form-control border-start-0 border-end-0 ps-0" id="auth-input-password" placeholder="Enter password" required autocomplete="current-password">
+                        <button class="btn btn-light border border-start-0" type="button" id="btn-toggle-password" title="Show/Hide Password">
+                            <i class="bi bi-eye text-muted" id="icon-toggle-password"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100 py-2.5 fw-semibold d-flex align-items-center justify-content-center gap-2 rounded-3 shadow-sm" id="btn-auth-submit">
+                    <i class="bi bi-box-arrow-in-right"></i>
+                    <span id="btn-auth-submit-text">Sign In</span>
+                    <span id="auth-submit-spinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                </button>
+            </form>
+
+            <!-- Portal Switcher Links -->
+            <div class="text-center mt-4 pt-3 border-top">
+                <p class="small text-muted mb-0" id="auth-switch-prompt">
+                    Need Staff view? <a href="/staff" class="text-primary text-decoration-none fw-semibold" id="link-switch-portal">Staff Portal Login</a>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="d-flex" id="wrapper">
     <!-- Sidebar -->
     <div id="sidebar-wrapper">
-        <div class="sidebar-heading d-flex align-items-center gap-2">
-            <i class="bi bi-building-gear text-primary fs-4"></i>
-            <span>Hall Manager ERP</span>
+        <div class="sidebar-heading d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-building-gear text-primary fs-4"></i>
+                <span class="fw-bold">Hall Manager</span>
+            </div>
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-0.5 nav-role-badge" id="sidebar-role-badge">Admin</span>
         </div>
-        <div class="list-group list-group-flush my-3">
-            <a href="#" class="list-group-item active" data-view="dashboard" id="nav-dashboard">
+
+        <!-- Admin Navigation Group -->
+        <div class="list-group list-group-flush my-2" id="admin-nav-group">
+            <div class="text-uppercase text-muted px-4 pt-2 pb-1 small fw-bold" style="font-size: 0.68rem; letter-spacing: 1px;">Admin Portal</div>
+            <a href="/admin" class="list-group-item active" data-view="dashboard" id="nav-dashboard">
                 <i class="bi bi-speedometer2"></i> Dashboard
             </a>
-            <a href="#" class="list-group-item" data-view="bookings" id="nav-bookings">
+            <a href="/admin" class="list-group-item" data-view="bookings" id="nav-bookings">
                 <i class="bi bi-calendar-event"></i> Booking List
             </a>
-            <a href="#" class="list-group-item" data-view="overall-summary" id="nav-overall-summary">
+            <a href="/admin" class="list-group-item" data-view="overall-summary" id="nav-overall-summary">
                 <i class="bi bi-pie-chart-fill"></i> Overall Summary
             </a>
-            <a href="#" class="list-group-item" data-view="yearly-events" id="nav-yearly-events">
+            <a href="/admin" class="list-group-item" data-view="yearly-events" id="nav-yearly-events">
                 <i class="bi bi-calendar3-range"></i> Yearly Events
             </a>
-            <a href="#" class="list-group-item" data-view="day-slots" id="nav-day-slots">
+            <a href="/admin" class="list-group-item" data-view="day-slots" id="nav-day-slots">
                 <i class="bi bi-clock-history"></i> Day Slot Events
             </a>
-            <a href="#" class="list-group-item" data-view="availability" id="nav-availability">
-                <i class="bi bi-clock-history"></i> Hall Availability
+            <a href="/admin" class="list-group-item" data-view="availability" id="nav-availability">
+                <i class="bi bi-calendar-check"></i> Hall Availability
             </a>
-            <a href="#" class="list-group-item" data-view="upcoming" id="nav-upcoming">
+            <a href="/admin" class="list-group-item" data-view="upcoming" id="nav-upcoming">
                 <i class="bi bi-calendar-range"></i> Upcoming Events
+            </a>
+        </div>
+
+        <!-- Staff Navigation Group -->
+        <div class="list-group list-group-flush my-2 d-none" id="staff-nav-group">
+            <div class="text-uppercase text-success px-4 pt-2 pb-1 small fw-bold" style="font-size: 0.68rem; letter-spacing: 1px;">Staff Operations</div>
+            <a href="/staff" class="list-group-item active" data-view="faculty-today" id="nav-staff-today">
+                <i class="bi bi-card-checklist"></i> Today's Event Tasks
+            </a>
+            <a href="/staff" class="list-group-item" data-view="faculty-upcoming" id="nav-staff-upcoming">
+                <i class="bi bi-calendar-week"></i> Upcoming Tasks
+            </a>
+            <a href="/staff" class="list-group-item" data-view="availability" id="nav-staff-availability">
+                <i class="bi bi-calendar-check"></i> Hall Availability
             </a>
         </div>
     </div>
@@ -58,30 +141,49 @@
     <div id="page-content-wrapper" class="w-100">
         <!-- Top Navbar -->
         <nav class="navbar navbar-expand-lg navbar-custom sticky-top">
-            <div class="container-fluid">
-                <button class="btn btn-outline-secondary border-0 btn-sm me-3" id="menu-toggle">
+            <div class="container-fluid px-0">
+                <button class="btn btn-outline-secondary border-0 btn-sm me-2" id="menu-toggle" aria-label="Toggle Sidebar">
                     <i class="bi bi-list fs-5"></i>
                 </button>
-                <h5 class="m-0 fw-bold text-dark d-none d-sm-block" id="page-title">Dashboard</h5>
+                <div class="d-flex align-items-center gap-2">
+                    <h5 class="m-0 fw-bold text-dark d-none d-sm-block" id="page-title">Dashboard</h5>
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1 small fw-semibold" id="route-indicator-badge">
+                        <i class="bi bi-shield-lock me-1"></i>/admin
+                    </span>
+                </div>
 
-                <div class="d-flex align-items-center gap-3 ms-auto">
-                    <!-- Role Switcher -->
-                    <div class="dropdown">
-                        <button class="btn btn-light dropdown-toggle border d-flex align-items-center gap-2" type="button" id="roleDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-person-badge"></i>
-                            <span id="current-role-label">Role: Admin</span>
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end shadow-sm" aria-labelledby="roleDropdown">
-                            <li><h6 class="dropdown-header">Switch Role Mode</h6></li>
-                            <li><a class="dropdown-item role-option active" href="#" data-role="Admin"><i class="bi bi-shield-lock text-primary me-2"></i> Admin Mode</a></li>
-                            <li><a class="dropdown-item role-option" href="#" data-role="Faculty"><i class="bi bi-mortarboard text-success me-2"></i> Faculty Mode</a></li>
-                        </ul>
+                <div class="d-flex align-items-center gap-2 ms-auto">
+                    <!-- Admin Action: Switch to Staff View -->
+                    <button class="btn btn-sm btn-outline-primary d-flex align-items-center gap-1.5 rounded-3 shadow-2xs" id="btn-switch-to-staff" title="Preview Staff Task View">
+                        <i class="bi bi-eye"></i>
+                        <span class="d-none d-md-inline">Switch to Staff View</span>
+                    </button>
+
+                    <!-- Admin Action: Return to Admin Portal (Shown when Admin is viewing Staff view) -->
+                    <button class="btn btn-sm btn-warning d-none align-items-center gap-1.5 rounded-3 shadow-2xs fw-semibold" id="btn-return-to-admin" title="Return to Admin Dashboard">
+                        <i class="bi bi-arrow-left-circle"></i>
+                        <span>Return to Admin</span>
+                    </button>
+
+                    <!-- User Profile & Role Info -->
+                    <div class="user-profile-badge" id="top-user-profile-box">
+                        <i class="bi bi-person-circle text-primary" id="role-icon"></i>
+                        <div class="d-flex flex-column text-start">
+                            <span class="fw-bold small lh-1 text-dark" id="current-user-name">Administrator</span>
+                            <span class="text-muted" style="font-size: 0.7rem;" id="current-role-label">Role: Admin</span>
+                        </div>
                     </div>
 
                     <!-- Add Booking Button (Admin Only) -->
-                    <button class="btn btn-primary d-flex align-items-center gap-2" id="btn-add-booking-nav" data-bs-toggle="modal" data-bs-target="#bookingModal">
+                    <button class="btn btn-primary btn-sm d-flex align-items-center gap-1.5 py-1.5 px-3 rounded-3 shadow-2xs" id="btn-add-booking-nav" data-bs-toggle="modal" data-bs-target="#bookingModal">
                         <i class="bi bi-plus-circle"></i>
                         <span class="d-none d-md-inline">New Booking</span>
+                    </button>
+
+                    <!-- Logout Button -->
+                    <button class="btn btn-outline-danger btn-sm d-flex align-items-center gap-1 py-1.5 px-2.5 rounded-3" id="btn-logout" title="Sign Out">
+                        <i class="bi bi-box-arrow-right"></i>
+                        <span class="d-none d-sm-inline">Logout</span>
                     </button>
                 </div>
             </div>
@@ -90,11 +192,11 @@
         <!-- Main Body Views -->
         <div class="container-fluid p-4">
             
-            <!-- ALERT BANNER FOR FACULTY NOTICE -->
-            <div class="alert alert-info border-0 shadow-sm d-none align-items-center justify-content-between mb-4" id="faculty-notice-banner">
+            <!-- ALERT BANNER FOR STAFF NOTICE -->
+            <div class="alert alert-success border-0 shadow-sm d-none align-items-center justify-content-between mb-4 rounded-4" id="faculty-notice-banner">
                 <div class="d-flex align-items-center gap-2">
-                    <i class="bi bi-info-circle-fill fs-5 text-info"></i>
-                    <span><strong>Faculty Read-Only Mode:</strong> You can view schedules, availability, and search events. Admin privileges required to edit bookings or record payments.</span>
+                    <i class="bi bi-info-circle-fill fs-5 text-success"></i>
+                    <span><strong>Staff Operations Portal:</strong> Viewing operational schedules, event requirement checklists (chairs, sound, lighting, catering), and task assignments. Financial ledgers and admin analytics are restricted.</span>
                 </div>
             </div>
 
@@ -109,7 +211,7 @@
                     <div class="d-flex align-items-center gap-2">
                         <button class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1" id="btn-refresh-dashboard" title="Refresh Dashboard Data">
                             <i class="bi bi-arrow-clockwise"></i>
-                            <span class="d-none d-sm-inline">Refresh</span>
+                        <span class="d-none d-sm-inline">Refresh</span>
                         </button>
                         <span id="dashboard-refresh-status" class="small text-muted d-none" role="status"><span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Refreshing…</span>
                         <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2 fw-semibold" id="today-date-badge">Today</span>
@@ -118,57 +220,57 @@
 
                 <!-- Operational Stats Row -->
                 <div class="row g-3 mb-3">
-                    <div class="col-12 col-sm-6 col-md-3">
+                    <div class="col-12 col-sm-6 col-xl-3">
                         <div class="card stat-card p-3 h-100">
                             <div class="d-flex align-items-center gap-3">
                                 <div class="stat-icon icon-blue">
                                     <i class="bi bi-calendar-check"></i>
                                 </div>
-                                <div>
-                                    <span class="text-muted small fw-medium">Total Bookings</span>
-                                    <h3 class="fw-bold mb-0" id="stat-total">0</h3>
+                                <div class="stat-content">
+                                    <span class="stat-label">Total Bookings</span>
+                                    <h3 class="stat-value" id="stat-total">0</h3>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="col-12 col-sm-6 col-md-3">
+                    <div class="col-12 col-sm-6 col-xl-3">
                         <div class="card stat-card p-3 h-100">
                             <div class="d-flex align-items-center gap-3">
                                 <div class="stat-icon icon-emerald">
                                     <i class="bi bi-building"></i>
                                 </div>
-                                <div>
-                                    <span class="text-muted small fw-medium">Hall 1 Status Today</span>
-                                    <h5 class="fw-bold mb-0 text-truncate" id="stat-hall1">Available</h5>
+                                <div class="stat-content">
+                                    <span class="stat-label" title="Small Hall Status Today">Small Hall Status Today</span>
+                                    <h5 class="stat-value text-success" id="stat-hall1">Ready for Booking</h5>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="col-12 col-sm-6 col-md-3">
+                    <div class="col-12 col-sm-6 col-xl-3">
                         <div class="card stat-card p-3 h-100">
                             <div class="d-flex align-items-center gap-3">
                                 <div class="stat-icon icon-purple">
                                     <i class="bi bi-building"></i>
                                 </div>
-                                <div>
-                                    <span class="text-muted small fw-medium">Hall 2 Status Today</span>
-                                    <h5 class="fw-bold mb-0 text-truncate" id="stat-hall2">Available</h5>
+                                <div class="stat-content">
+                                    <span class="stat-label" title="Big Hall Status Today">Big Hall Status Today</span>
+                                    <h5 class="stat-value text-success" id="stat-hall2">Ready for Booking</h5>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="col-12 col-sm-6 col-md-3">
+                    <div class="col-12 col-sm-6 col-xl-3">
                         <div class="card stat-card p-3 h-100">
                             <div class="d-flex align-items-center gap-3">
                                 <div class="stat-icon icon-amber">
                                     <i class="bi bi-clock-history"></i>
                                 </div>
-                                <div>
-                                    <span class="text-muted small fw-medium">Today's Events</span>
-                                    <h3 class="fw-bold mb-0" id="stat-today-count">0</h3>
+                                <div class="stat-content">
+                                    <span class="stat-label">Today's Events</span>
+                                    <h3 class="stat-value" id="stat-today-count">0</h3>
                                 </div>
                             </div>
                         </div>
@@ -177,50 +279,50 @@
 
                 <!-- Financial Summary KPI Cards -->
                 <div class="row g-3 mb-4">
-                    <div class="col-12 col-sm-6 col-md-3">
+                    <div class="col-12 col-sm-6 col-xl-3">
                         <div class="card stat-card p-3 h-100 bg-white">
-                            <div class="d-flex align-items-center justify-content-between">
-                                <div>
-                                    <span class="text-muted small fw-medium">Today's Collection</span>
-                                    <h4 class="fw-bold text-success mb-0" id="stat-today-collection">₹0</h4>
+                            <div class="d-flex align-items-center justify-content-between gap-2">
+                                <div class="stat-content">
+                                    <span class="stat-label">Today's Collection</span>
+                                    <h4 class="stat-value text-success" id="stat-today-collection">₹0</h4>
                                 </div>
-                                <div class="p-2 bg-success-subtle text-success rounded-3"><i class="bi bi-cash-coin fs-4"></i></div>
+                                <div class="stat-icon-box bg-success-subtle text-success"><i class="bi bi-cash-coin fs-4"></i></div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="col-12 col-sm-6 col-md-3">
+                    <div class="col-12 col-sm-6 col-xl-3">
                         <div class="card stat-card p-3 h-100 bg-white">
-                            <div class="d-flex align-items-center justify-content-between">
-                                <div>
-                                    <span class="text-muted small fw-medium">Pending Rent Dues</span>
-                                    <h4 class="fw-bold text-warning mb-0" id="stat-pending-payments">₹0</h4>
+                            <div class="d-flex align-items-center justify-content-between gap-2">
+                                <div class="stat-content">
+                                    <span class="stat-label">Pending Rent Dues</span>
+                                    <h4 class="stat-value text-warning" id="stat-pending-payments">₹0</h4>
                                 </div>
-                                <div class="p-2 bg-warning-subtle text-warning rounded-3"><i class="bi bi-hourglass-split fs-4"></i></div>
+                                <div class="stat-icon-box bg-warning-subtle text-warning"><i class="bi bi-hourglass-split fs-4"></i></div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="col-12 col-sm-6 col-md-3">
+                    <div class="col-12 col-sm-6 col-xl-3">
                         <div class="card stat-card p-3 h-100 bg-white">
-                            <div class="d-flex align-items-center justify-content-between">
-                                <div>
-                                    <span class="text-muted small fw-medium">Total Rent Income</span>
-                                    <h4 class="fw-bold text-primary mb-0" id="stat-total-revenue">₹0</h4>
+                            <div class="d-flex align-items-center justify-content-between gap-2">
+                                <div class="stat-content">
+                                    <span class="stat-label">Total Rent Income</span>
+                                    <h4 class="stat-value text-primary" id="stat-total-revenue">₹0</h4>
                                 </div>
-                                <div class="p-2 bg-primary-subtle text-primary rounded-3"><i class="bi bi-graph-up-arrow fs-4"></i></div>
+                                <div class="stat-icon-box bg-primary-subtle text-primary"><i class="bi bi-graph-up-arrow fs-4"></i></div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="col-12 col-sm-6 col-md-3">
+                    <div class="col-12 col-sm-6 col-xl-3">
                         <div class="card stat-card p-3 h-100 bg-white">
-                            <div class="d-flex align-items-center justify-content-between">
-                                <div>
-                                    <span class="text-muted small fw-medium">Deposits Held in Hand</span>
-                                    <h4 class="fw-bold text-purple mb-0" style="color: #7c3aed;" id="stat-deposits-held">₹0</h4>
+                            <div class="d-flex align-items-center justify-content-between gap-2">
+                                <div class="stat-content">
+                                    <span class="stat-label">Deposits Held in Hand</span>
+                                    <h4 class="stat-value text-purple" style="color: #7c3aed;" id="stat-deposits-held">₹0</h4>
                                 </div>
-                                <div class="p-2 bg-purple-subtle text-purple rounded-3" style="background:#f3e8ff; color:#6b21a8;"><i class="bi bi-shield-check fs-4"></i></div>
+                                <div class="stat-icon-box bg-purple-subtle text-purple" style="background:#f3e8ff; color:#6b21a8;"><i class="bi bi-shield-check fs-4"></i></div>
                             </div>
                         </div>
                     </div>
@@ -241,40 +343,71 @@
                         </div>
                     </div>
 
-                    <!-- Recent Activity Feed -->
+                    <!-- Quick Financial Highlights Box -->
                     <div class="col-12 col-lg-4">
                         <div class="card border-0 shadow-sm rounded-4 p-4 h-100">
-                            <h6 class="fw-bold mb-3"><i class="bi bi-activity text-primary me-2"></i>Recent Activity Log</h6>
-                            <div id="recent-activity-container" class="vstack gap-3">
-                                <!-- Dynamic JS Population -->
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="fw-bold mb-0"><i class="bi bi-pie-chart text-primary me-2"></i>Financial & Security Deposit Status</h6>
+                                <span class="badge bg-primary-subtle text-primary small">Audit</span>
+                            </div>
+                            <div class="vstack gap-3">
+                                <div class="p-3 bg-light rounded-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <span class="text-muted small fw-medium">Refundable Deposit Held:</span>
+                                        <span class="fw-bold text-dark" id="stat-deposits-held-detail">₹0</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="text-muted small fw-medium">Active Dues Balance:</span>
+                                        <span class="fw-bold text-danger" id="stat-pending-payments-detail">₹0</span>
+                                    </div>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center p-3 border rounded-3 bg-white">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <i class="bi bi-file-earmark-check text-success fs-5"></i>
+                                        <span class="small fw-semibold">Auto-calculated GST (0%)</span>
+                                    </div>
+                                    <span class="badge bg-success-subtle text-success">Compliant</span>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center p-3 border rounded-3 bg-white">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <i class="bi bi-shield-lock text-primary fs-5"></i>
+                                        <span class="small fw-semibold">Audit Ledger Logs</span>
+                                    </div>
+                                    <span class="badge bg-primary-subtle text-primary">Tamper-Proof</span>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- 2. BOOKINGS LIST VIEW -->
-            <div id="view-bookings" class="content-view d-none">
+                <!-- Section Divider / Header -->
+                <div class="d-flex justify-content-between align-items-center mt-4 mb-3 flex-wrap gap-2">
+                    <h6 class="fw-bold text-dark m-0"><i class="bi bi-table text-primary me-2"></i>Recent & Filtered Booking Ledger</h6>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-light text-muted border small" id="filtered-count-badge">0 Bookings</span>
+                    </div>
+                </div>
+
                 <!-- Filters & Search Toolbar -->
                 <div class="card border-0 shadow-sm rounded-4 p-3 mb-3 booking-filters-card">
                     <div class="row g-2 align-items-center">
-                        <div class="col-12 col-md-4">
+                        <div class="col-12 col-lg-3">
                             <div class="input-group">
                                 <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
                                 <input type="text" class="form-control border-start-0" id="filter-search" placeholder="Search customer, event, mobile, ID...">
                             </div>
                         </div>
-                        <div class="col-6 col-md-2">
+                        <div class="col-6 col-sm-4 col-lg-2">
                             <input type="date" class="form-control" id="filter-date">
                         </div>
-                        <div class="col-6 col-md-2">
+                        <div class="col-6 col-sm-4 col-lg-2">
                             <select class="form-select" id="filter-hall">
                                 <option value="All">All Halls</option>
-                                <option value="Hall 1">Hall 1</option>
-                                <option value="Hall 2">Hall 2</option>
+                                <option value="Small Hall">Small Hall</option>
+                                <option value="Big Hall">Big Hall</option>
                             </select>
                         </div>
-                        <div class="col-6 col-md-2">
+                        <div class="col-6 col-sm-4 col-lg-2">
                             <select class="form-select" id="filter-status">
                                 <option value="All">All Statuses</option>
                                 <option value="Draft">Draft (Enquiry)</option>
@@ -285,7 +418,7 @@
                                 <option value="Archived">Archived</option>
                             </select>
                         </div>
-                        <div class="col-6 col-md-2">
+                        <div class="col-6 col-sm-8 col-lg-2">
                             <select class="form-select text-danger border-danger-subtle fw-semibold" id="filter-booking-dues">
                                 <option value="All">All Dues Statuses</option>
                                 <option value="DuesPending">⚠️ Rent Dues Pending</option>
@@ -294,7 +427,7 @@
                                 <option value="DepositHeld">🛡️ Deposit Held</option>
                             </select>
                         </div>
-                        <div class="col-6 col-md-1">
+                        <div class="col-12 col-sm-4 col-lg-1">
                             <button class="btn btn-outline-secondary w-100" id="btn-reset-filters" title="Reset Filters">
                                 <i class="bi bi-arrow-counterclockwise"></i>
                             </button>
@@ -340,11 +473,11 @@
                 </div>
 
                 <div class="row g-4">
-                    <!-- Hall 1 Schedule Card -->
+                    <!-- Small Hall Schedule Card -->
                     <div class="col-12 col-md-6">
                         <div class="card border-0 shadow-sm rounded-4 p-4">
                             <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h5 class="fw-bold mb-0 text-primary"><i class="bi bi-building me-2"></i>Hall 1</h5>
+                                <h5 class="fw-bold mb-0 text-primary"><i class="bi bi-building me-2"></i>Small Hall</h5>
                                 <span class="badge bg-primary-subtle text-primary fw-semibold" id="hall1-count-badge">0 Bookings</span>
                             </div>
                             <hr class="my-2">
@@ -354,11 +487,11 @@
                         </div>
                     </div>
 
-                    <!-- Hall 2 Schedule Card -->
+                    <!-- Big Hall Schedule Card -->
                     <div class="col-12 col-md-6">
                         <div class="card border-0 shadow-sm rounded-4 p-4">
                             <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h5 class="fw-bold mb-0 text-purple" style="color: #7c3aed;"><i class="bi bi-building me-2"></i>Hall 2</h5>
+                                <h5 class="fw-bold mb-0 text-purple" style="color: #7c3aed;"><i class="bi bi-building me-2"></i>Big Hall</h5>
                                 <span class="badge bg-purple-subtle text-purple fw-semibold" style="background:#f3e8ff; color:#6b21a8;" id="hall2-count-badge">0 Bookings</span>
                             </div>
                             <hr class="my-2">
@@ -398,47 +531,47 @@
 
                 <!-- KPI Cards Row -->
                 <div class="row g-3 mb-4">
-                    <div class="col-12 col-sm-6 col-md-3">
+                    <div class="col-12 col-sm-6 col-xl-3">
                         <div class="card stat-card p-3 h-100 bg-white shadow-sm border-0 rounded-4">
-                            <div class="d-flex align-items-center justify-content-between">
-                                <div>
-                                    <span class="text-muted small fw-medium">Today's Total Collection</span>
-                                    <h4 class="fw-bold text-success mb-0" id="overall-stat-today-coll">₹0</h4>
+                            <div class="d-flex align-items-center justify-content-between gap-2">
+                                <div class="stat-content">
+                                    <span class="stat-label">Today's Total Collection</span>
+                                    <h4 class="stat-value text-success" id="overall-stat-today-coll">₹0</h4>
                                 </div>
-                                <div class="p-2.5 bg-success-subtle text-success rounded-3"><i class="bi bi-cash-coin fs-4"></i></div>
+                                <div class="stat-icon-box bg-success-subtle text-success"><i class="bi bi-cash-coin fs-4"></i></div>
                             </div>
                         </div>
                     </div>
-                    <div class="col-12 col-sm-6 col-md-3">
+                    <div class="col-12 col-sm-6 col-xl-3">
                         <div class="card stat-card p-3 h-100 bg-white shadow-sm border-0 rounded-4">
-                            <div class="d-flex align-items-center justify-content-between">
-                                <div>
-                                    <span class="text-muted small fw-medium">Total Rent Revenue</span>
-                                    <h4 class="fw-bold text-primary mb-0" id="overall-stat-total-rev">₹0</h4>
+                            <div class="d-flex align-items-center justify-content-between gap-2">
+                                <div class="stat-content">
+                                    <span class="stat-label">Total Rent Revenue</span>
+                                    <h4 class="stat-value text-primary" id="overall-stat-total-rev">₹0</h4>
                                 </div>
-                                <div class="p-2.5 bg-primary-subtle text-primary rounded-3"><i class="bi bi-graph-up-arrow fs-4"></i></div>
+                                <div class="stat-icon-box bg-primary-subtle text-primary"><i class="bi bi-graph-up-arrow fs-4"></i></div>
                             </div>
                         </div>
                     </div>
-                    <div class="col-12 col-sm-6 col-md-3">
+                    <div class="col-12 col-sm-6 col-xl-3">
                         <div class="card stat-card p-3 h-100 bg-white shadow-sm border-0 rounded-4">
-                            <div class="d-flex align-items-center justify-content-between">
-                                <div>
-                                    <span class="text-muted small fw-medium">Pending Rent Dues</span>
-                                    <h4 class="fw-bold text-warning mb-0" id="overall-stat-pending-dues">₹0</h4>
+                            <div class="d-flex align-items-center justify-content-between gap-2">
+                                <div class="stat-content">
+                                    <span class="stat-label">Pending Rent Dues</span>
+                                    <h4 class="stat-value text-warning" id="overall-stat-pending-dues">₹0</h4>
                                 </div>
-                                <div class="p-2.5 bg-warning-subtle text-warning rounded-3"><i class="bi bi-hourglass-split fs-4"></i></div>
+                                <div class="stat-icon-box bg-warning-subtle text-warning"><i class="bi bi-hourglass-split fs-4"></i></div>
                             </div>
                         </div>
                     </div>
-                    <div class="col-12 col-sm-6 col-md-3">
+                    <div class="col-12 col-sm-6 col-xl-3">
                         <div class="card stat-card p-3 h-100 bg-white shadow-sm border-0 rounded-4">
-                            <div class="d-flex align-items-center justify-content-between">
-                                <div>
-                                    <span class="text-muted small fw-medium">Security Deposits Held</span>
-                                    <h4 class="fw-bold mb-0" style="color: #7c3aed;" id="overall-stat-deposits-held">₹0</h4>
+                            <div class="d-flex align-items-center justify-content-between gap-2">
+                                <div class="stat-content">
+                                    <span class="stat-label">Security Deposits Held</span>
+                                    <h4 class="stat-value text-purple" style="color: #7c3aed;" id="overall-stat-deposits-held">₹0</h4>
                                 </div>
-                                <div class="p-2.5 rounded-3" style="background:#f3e8ff; color:#6b21a8;"><i class="bi bi-shield-check fs-4"></i></div>
+                                <div class="stat-icon-box bg-purple-subtle text-purple" style="background:#f3e8ff; color:#6b21a8;"><i class="bi bi-shield-check fs-4"></i></div>
                             </div>
                         </div>
                     </div>
@@ -559,10 +692,10 @@
                 <div class="row g-3 mb-4">
                     <div class="col-12 col-sm-6 col-xl-3">
                         <div class="card stat-card p-3 h-100 bg-white shadow-sm border-0 rounded-4">
-                            <div class="d-flex align-items-center justify-content-between">
-                                <div>
-                                    <span class="text-muted small fw-medium" id="yearly-label-total-events">Total Events</span>
-                                    <h3 class="fw-bold mb-0 text-dark" id="yearly-stat-total-events">0</h3>
+                            <div class="d-flex align-items-center justify-content-between gap-2">
+                                <div class="stat-content">
+                                    <span class="stat-label" id="yearly-label-total-events">Total Events</span>
+                                    <h3 class="stat-value" id="yearly-stat-total-events">0</h3>
                                     <span class="small text-muted" id="yearly-sub-total-events">All recorded events</span>
                                 </div>
                                 <div class="stat-icon icon-blue p-2 rounded-3"><i class="bi bi-calendar3-event fs-4"></i></div>
@@ -572,10 +705,10 @@
 
                     <div class="col-12 col-sm-6 col-xl-3">
                         <div class="card stat-card p-3 h-100 bg-white shadow-sm border-0 rounded-4">
-                            <div class="d-flex align-items-center justify-content-between">
-                                <div>
-                                    <span class="text-muted small fw-medium" id="yearly-label-total-revenue">Revenue Earned</span>
-                                    <h3 class="fw-bold mb-0 text-success" id="yearly-stat-total-revenue">₹0</h3>
+                            <div class="d-flex align-items-center justify-content-between gap-2">
+                                <div class="stat-content">
+                                    <span class="stat-label" id="yearly-label-total-revenue">Revenue Earned</span>
+                                    <h3 class="stat-value text-success" id="yearly-stat-total-revenue">₹0</h3>
                                     <span class="small text-muted" id="yearly-sub-total-revenue">Net rent collected</span>
                                 </div>
                                 <div class="stat-icon icon-emerald p-2 rounded-3"><i class="bi bi-cash-stack fs-4"></i></div>
@@ -585,10 +718,10 @@
 
                     <div class="col-12 col-sm-6 col-xl-3">
                         <div class="card stat-card p-3 h-100 bg-white shadow-sm border-0 rounded-4">
-                            <div class="d-flex align-items-center justify-content-between">
-                                <div>
-                                    <span class="text-muted small fw-medium">Hall 1 Share</span>
-                                    <h3 class="fw-bold mb-0 text-primary" id="yearly-stat-hall1-count">0</h3>
+                            <div class="d-flex align-items-center justify-content-between gap-2">
+                                <div class="stat-content">
+                                    <span class="stat-label">Small Hall Share</span>
+                                    <h3 class="stat-value text-primary" id="yearly-stat-hall1-count">0</h3>
                                     <span class="small text-muted" id="yearly-stat-hall1-revenue">Revenue: ₹0</span>
                                 </div>
                                 <div class="stat-icon icon-blue p-2 rounded-3"><i class="bi bi-building fs-4"></i></div>
@@ -598,10 +731,10 @@
 
                     <div class="col-12 col-sm-6 col-xl-3">
                         <div class="card stat-card p-3 h-100 bg-white shadow-sm border-0 rounded-4">
-                            <div class="d-flex align-items-center justify-content-between">
-                                <div>
-                                    <span class="text-muted small fw-medium">Hall 2 Share</span>
-                                    <h3 class="fw-bold mb-0 text-purple" style="color: #7c3aed;" id="yearly-stat-hall2-count">0</h3>
+                            <div class="d-flex align-items-center justify-content-between gap-2">
+                                <div class="stat-content">
+                                    <span class="stat-label">Big Hall Share</span>
+                                    <h3 class="stat-value text-purple" style="color: #7c3aed;" id="yearly-stat-hall2-count">0</h3>
                                     <span class="small text-muted" id="yearly-stat-hall2-revenue">Revenue: ₹0</span>
                                 </div>
                                 <div class="stat-icon icon-purple p-2 rounded-3"><i class="bi bi-building-check fs-4"></i></div>
@@ -713,8 +846,8 @@
                                         <tr>
                                             <th>Month</th>
                                             <th class="text-center">Total Events</th>
-                                            <th class="text-center">Hall 1</th>
-                                            <th class="text-center">Hall 2</th>
+                                            <th class="text-center">Small Hall</th>
+                                            <th class="text-center">Big Hall</th>
                                             <th class="text-end pe-3">Revenue Earned</th>
                                         </tr>
                                     </thead>
@@ -742,8 +875,8 @@
                                 <tr>
                                     <th class="ps-3">Year</th>
                                     <th class="text-center">Total Events</th>
-                                    <th class="text-center">Hall 1 Events</th>
-                                    <th class="text-center">Hall 2 Events</th>
+                                    <th class="text-center">Small Hall Events</th>
+                                    <th class="text-center">Big Hall Events</th>
                                     <th class="text-center">Completed</th>
                                     <th class="text-center">Confirmed</th>
                                     <th class="text-center">Cancelled</th>
@@ -1000,8 +1133,8 @@
                             <!-- Hall Filter -->
                             <select class="form-select form-select-sm" id="day-slots-hall-filter" style="width: auto; cursor: pointer;">
                                 <option value="All" selected>All Halls</option>
-                                <option value="Hall 1">Hall 1</option>
-                                <option value="Hall 2">Hall 2</option>
+                                <option value="Small Hall">Small Hall</option>
+                                <option value="Big Hall">Big Hall</option>
                             </select>
 
                             <!-- Instant Search -->
@@ -1045,6 +1178,171 @@
                             <i class="bi bi-plus-circle me-1"></i>Book a Slot
                         </button>
                     </div>
+                </div>
+            </div>
+
+            <!-- 8. FACULTY VIEW: TODAY'S EVENT TASKS & CHECKLIST -->
+            <div id="view-faculty-today" class="content-view d-none">
+                <!-- Header Banner -->
+                <div class="d-flex justify-content-between align-items-center mb-3 compact-summary-banner flex-wrap gap-2">
+                    <div>
+                        <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-card-checklist text-success me-2"></i>Today's Event Tasks & Requirements</h6>
+                        <span class="text-muted small">Operational schedule, requirements checklist (chairs, sound, lighting, catering), and task acknowledgments</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <div class="d-flex align-items-center gap-1 bg-white p-1 rounded-3 border shadow-xs">
+                            <button class="btn btn-outline-secondary btn-sm py-1 px-2 border-0" id="btn-fac-prev" title="Previous Day">
+                                <i class="bi bi-chevron-left"></i>
+                            </button>
+                            <label for="fac-date-picker" class="small fw-semibold text-muted px-1"><i class="bi bi-calendar-event me-1 text-success"></i>Date:</label>
+                            <input type="date" class="form-control form-control-sm border-0 py-1 pe-2 fw-bold text-success" id="fac-date-picker" style="width: auto; cursor: pointer;">
+                            <button class="btn btn-outline-secondary btn-sm py-1 px-2 border-0" id="btn-fac-next" title="Next Day">
+                                <i class="bi bi-chevron-right"></i>
+                            </button>
+                            <button class="btn btn-outline-success btn-sm py-1 px-2 border-0 rounded-2 fw-semibold" id="btn-fac-today">Today</button>
+                        </div>
+                        <button class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1" id="btn-refresh-faculty-today" title="Refresh Staff Tasks">
+                            <i class="bi bi-arrow-clockwise"></i>
+                            <span class="d-none d-sm-inline">Refresh</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Shift Filter Pills & Hall Toolbar -->
+                <div class="card border-0 shadow-sm rounded-4 p-3 mb-4">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <span class="small fw-bold text-muted text-uppercase me-1"><i class="bi bi-clock-history me-1"></i>Shift:</span>
+                            <div class="btn-group btn-group-sm" role="group" id="fac-shift-pills">
+                                <button type="button" class="btn btn-outline-success active" data-shift="all">All Shifts</button>
+                                <button type="button" class="btn btn-outline-warning" data-shift="morning"><i class="bi bi-sunrise me-1"></i>Morning</button>
+                                <button type="button" class="btn btn-outline-primary" data-shift="afternoon"><i class="bi bi-sun me-1"></i>Afternoon</button>
+                                <button type="button" class="btn btn-outline-purple" style="border-color:#a855f7; color:#7e22ce;" data-shift="evening"><i class="bi bi-sunset me-1"></i>Evening</button>
+                                <button type="button" class="btn btn-outline-dark" data-shift="night"><i class="bi bi-moon-stars me-1"></i>Night</button>
+                            </div>
+                        </div>
+
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <select class="form-select form-select-sm" id="fac-hall-filter" style="width: auto;">
+                                <option value="All" selected>All Halls</option>
+                                <option value="Small Hall">Small Hall</option>
+                                <option value="Big Hall">Big Hall</option>
+                            </select>
+
+                            <select class="form-select form-select-sm" id="fac-status-filter" style="width: auto;">
+                                <option value="All" selected>All Prep Status</option>
+                                <option value="Pending">⏳ Pending Setup</option>
+                                <option value="In Progress">🔄 In Progress</option>
+                                <option value="Ready">✅ Ready & Prepared</option>
+                            </select>
+
+                            <div class="input-group input-group-sm" style="width: 220px;">
+                                <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                                <input type="text" class="form-control border-start-0" id="fac-search-input" placeholder="Search event or contact...">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- KPI Metric Cards for Faculty -->
+                <div class="row g-3 mb-4">
+                    <div class="col-12 col-sm-6 col-xl-3">
+                        <div class="card stat-card p-3 h-100 bg-white shadow-sm border-0 rounded-4">
+                            <div class="d-flex align-items-center justify-content-between gap-2">
+                                <div class="stat-content">
+                                    <span class="stat-label">Today's Assigned Events</span>
+                                    <h3 class="stat-value" id="fac-kpi-total">0</h3>
+                                </div>
+                                <div class="stat-icon-box bg-primary-subtle text-primary"><i class="bi bi-calendar-event fs-4"></i></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-sm-6 col-xl-3">
+                        <div class="card stat-card p-3 h-100 bg-white shadow-sm border-0 rounded-4">
+                            <div class="d-flex align-items-center justify-content-between gap-2">
+                                <div class="stat-content">
+                                    <span class="stat-label">Ready & Prepared</span>
+                                    <h3 class="stat-value text-success" id="fac-kpi-ready">0</h3>
+                                </div>
+                                <div class="stat-icon-box bg-success-subtle text-success"><i class="bi bi-check-circle fs-4"></i></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-sm-6 col-xl-3">
+                        <div class="card stat-card p-3 h-100 bg-white shadow-sm border-0 rounded-4">
+                            <div class="d-flex align-items-center justify-content-between gap-2">
+                                <div class="stat-content">
+                                    <span class="stat-label">Setup In Progress</span>
+                                    <h3 class="stat-value text-primary" id="fac-kpi-progress">0</h3>
+                                </div>
+                                <div class="stat-icon-box bg-info-subtle text-info"><i class="bi bi-hourglass-split fs-4"></i></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-sm-6 col-xl-3">
+                        <div class="card stat-card p-3 h-100 bg-white shadow-sm border-0 rounded-4">
+                            <div class="d-flex align-items-center justify-content-between gap-2">
+                                <div class="stat-content">
+                                    <span class="stat-label">Setup Pending</span>
+                                    <h3 class="stat-value text-warning" id="fac-kpi-pending">0</h3>
+                                </div>
+                                <div class="stat-icon-box bg-warning-subtle text-warning"><i class="bi bi-exclamation-circle fs-4"></i></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Event Cards List / Grid -->
+                <div class="row g-4" id="faculty-today-cards-container">
+                    <!-- Dynamic JS Population -->
+                </div>
+
+                <!-- Empty State -->
+                <div id="faculty-today-empty-state" class="text-center py-5 d-none">
+                    <div class="mb-3 text-muted">
+                        <i class="bi bi-calendar2-check fs-1 text-secondary opacity-50"></i>
+                    </div>
+                    <h5 class="fw-bold text-dark mb-1">No event tasks found</h5>
+                    <p class="text-muted small mb-0">No bookings scheduled for the selected shift and date.</p>
+                </div>
+            </div>
+
+            <!-- 9. FACULTY VIEW: UPCOMING TASKS -->
+            <div id="view-faculty-upcoming" class="content-view d-none">
+                <!-- Header Banner -->
+                <div class="d-flex justify-content-between align-items-center mb-3 compact-summary-banner flex-wrap gap-2">
+                    <div>
+                        <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-calendar-week text-primary me-2"></i>Upcoming Events & Preparation Schedule</h6>
+                        <span class="text-muted small">Review upcoming reservations, hall assignments, and prepare equipment checklists ahead of time</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <select class="form-select form-select-sm" id="fac-upcoming-hall-filter" style="width: auto;">
+                            <option value="All" selected>All Halls</option>
+                            <option value="Small Hall">Small Hall</option>
+                            <option value="Big Hall">Big Hall</option>
+                        </select>
+                        <div class="input-group input-group-sm" style="width: 220px;">
+                            <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                            <input type="text" class="form-control border-start-0" id="fac-upcoming-search-input" placeholder="Search upcoming...">
+                        </div>
+                        <button class="btn btn-outline-secondary btn-sm" id="btn-refresh-faculty-upcoming" title="Refresh">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Upcoming Event Cards Grid -->
+                <div class="row g-4" id="faculty-upcoming-cards-container">
+                    <!-- Dynamic JS Population -->
+                </div>
+
+                <!-- Upcoming Empty State -->
+                <div id="faculty-upcoming-empty-state" class="text-center py-5 d-none">
+                    <div class="mb-3 text-muted">
+                        <i class="bi bi-calendar-x fs-1 text-secondary opacity-50"></i>
+                    </div>
+                    <h5 class="fw-bold text-dark mb-1">No upcoming events scheduled</h5>
+                    <p class="text-muted small mb-0">Check back later or view availability to see open slots.</p>
                 </div>
             </div>
         </div>
@@ -1091,8 +1389,8 @@
                     <div class="col-12 col-md-3">
                         <label for="input-hall" class="form-label fw-semibold">Select Hall *</label>
                         <select class="form-select" id="input-hall" required>
-                            <option value="Hall 1">Hall 1</option>
-                            <option value="Hall 2">Hall 2</option>
+                            <option value="Small Hall">Small Hall</option>
+                            <option value="Big Hall">Big Hall</option>
                         </select>
                     </div>
 
@@ -1620,8 +1918,8 @@
                                 <tr>
                                     <th>Month</th>
                                     <th class="text-center">Total Events</th>
-                                    <th class="text-center">Hall 1 Events</th>
-                                    <th class="text-center">Hall 2 Events</th>
+                                    <th class="text-center">Small Hall Events</th>
+                                    <th class="text-center">Big Hall Events</th>
                                     <th class="text-end pe-3">Revenue Realized</th>
                                 </tr>
                             </thead>
@@ -1678,6 +1976,88 @@
     </div>
 </div>
 
+<!-- ========================================== -->
+<!-- MODAL: FACULTY EVENT DETAILS & CHECKLIST (ZERO FINANCIAL DATA) -->
+<!-- ========================================== -->
+<div class="modal fade" id="facultyEventModal" tabindex="-1" aria-labelledby="facultyEventModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-bottom-0 pb-0">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="p-2 bg-success-subtle text-success rounded-3">
+                        <i class="bi bi-card-checklist fs-4"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title fw-bold text-dark mb-0" id="facultyEventModalLabel">Event Details & Requirements Checklist</h5>
+                        <span class="text-muted small" id="faculty-modal-subtitle">Operational Hall Schedule & Task Status</span>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4" id="faculty-modal-body">
+                <!-- Dynamic Content (Badges, Event Info, Checklist Grid, Task Acknowledgment, Timeline) -->
+            </div>
+            <div class="modal-footer border-top-0 d-flex justify-content-between">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-success" id="btn-fac-modal-ack">
+                        <i class="bi bi-patch-check me-1"></i>Acknowledge Task
+                    </button>
+                    <button type="button" class="btn btn-success px-3" id="btn-fac-modal-mark-prep">
+                        <i class="bi bi-check2-circle me-1"></i>Mark All Prepared
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- MODAL: USER AUTHENTICATION & LOGIN -->
+<!-- ========================================== -->
+<div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 p-2">
+            <div class="modal-header border-bottom-0 pb-0">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="p-2 bg-primary-subtle text-primary rounded-3">
+                        <i class="bi bi-shield-lock-fill fs-4"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title fw-bold text-dark mb-0" id="loginModalLabel">System Login</h5>
+                        <span class="text-muted small">Sign in to access your designated portal</span>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <!-- Credentials Login Form -->
+                <form id="customLoginForm" class="row g-3">
+                    <div class="col-12">
+                        <label for="login-input-username" class="form-label fw-semibold small">Username</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light"><i class="bi bi-person text-muted"></i></span>
+                            <input type="text" class="form-control" id="login-input-username" placeholder="Enter username" required autocomplete="username">
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <label for="login-input-password" class="form-label fw-semibold small">Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light"><i class="bi bi-key text-muted"></i></span>
+                            <input type="password" class="form-control" id="login-input-password" placeholder="Enter password" required autocomplete="current-password">
+                        </div>
+                    </div>
+                    <div class="col-12 pt-2">
+                        <button type="submit" class="btn btn-primary w-100 fw-semibold py-2" id="btn-submit-login">
+                            <i class="bi bi-box-arrow-in-right me-1"></i>Sign In
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- TOAST CONTAINER FOR NOTIFICATIONS -->
 <div class="toast-container position-fixed bottom-0 end-0 p-3">
     <div id="liveToast" class="toast border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
@@ -1688,16 +2068,6 @@
             <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
         </div>
     </div>
-</div>
-
-<!-- Automatic Clean Slate Cache Reset -->
-<script>
-    try {
-        localStorage.clear();
-        sessionStorage.clear();
-    } catch(e) {}
-</script>
-
 <!-- Bootstrap 5 JS Bundle with Popper -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <!-- Client Data Adapter (LocalStorage & Day Slots Engine) -->

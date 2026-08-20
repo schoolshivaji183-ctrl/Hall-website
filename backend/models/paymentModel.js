@@ -461,7 +461,7 @@ class PaymentModel {
     /**
      * Overall Financial Statistics & Aggregations for Reports
      */
-    static getFinancialStats() {
+    static async getFinancialStats() {
         const BookingModel = require('./bookingModel');
         const todayStr = getFormattedDate(0);
 
@@ -505,7 +505,7 @@ class PaymentModel {
         const todayCollections = Math.max(0, cashCollection + upiCollection + cardCollection + otherCollection);
 
         // Aggregate across all active bookings
-        const allBookings = BookingModel.findAll();
+        const allBookings = await BookingModel.findAll();
         let totalRentRevenue = 0;
         let totalDepositHeld = 0;
         let pendingRentDues = 0;
