@@ -548,7 +548,10 @@ function initApp() {
             todayCollections = 0,
             pendingRentDues = 0,
             totalRentRevenue = 0,
-            totalDepositHeld = 0
+            totalDepositsCollected = 0,
+            totalDepositsRefunded = 0,
+            totalDepositHeld = 0,
+            netIncome = 0
         } = metrics;
 
         if (document.getElementById('stat-total')) {
@@ -588,6 +591,9 @@ function initApp() {
         }
         if (document.getElementById('stat-total-revenue')) {
             document.getElementById('stat-total-revenue').textContent = `₹${totalRentRevenue.toLocaleString()}`;
+        }
+        if (document.getElementById('stat-net-income')) {
+            document.getElementById('stat-net-income').textContent = `₹${netIncome.toLocaleString()}`;
         }
         if (document.getElementById('stat-deposits-held')) {
             document.getElementById('stat-deposits-held').textContent = `₹${totalDepositHeld.toLocaleString()}`;
@@ -644,14 +650,27 @@ function initApp() {
             // 2. Compute Financial Metrics directly from /api/bookings & /api/payments
             let pendingRentDues = 0;
             let totalRentRevenue = 0;
+            let totalDepositsCollected = 0;
+            let totalDepositsRefunded = 0;
             let totalDepositHeld = 0;
 
             activeBookings.forEach(b => {
                 const f = b.financial || {};
-                pendingRentDues += (f.remainingRent !== undefined ? f.remainingRent : 0);
-                totalRentRevenue += (f.netRentPaid !== undefined ? f.netRentPaid : 0);
-                totalDepositHeld += (f.effectiveDepositHeld !== undefined ? f.effectiveDepositHeld : 0);
+                const rentPaid = (f.netRentPaid !== undefined ? f.netRentPaid : (b.rentPaid || 0));
+                const depositPaid = (f.depositPaid !== undefined ? f.depositPaid : (b.depositCollected || 0));
+                const depositReturned = (f.depositReturned !== undefined ? f.depositReturned : (b.depositRefunded || 0));
+                const depositHeld = (f.effectiveDepositHeld !== undefined ? f.effectiveDepositHeld : 0);
+                const remRent = (f.remainingRent !== undefined ? f.remainingRent : 0);
+
+                pendingRentDues += remRent;
+                totalRentRevenue += rentPaid;
+                totalDepositsCollected += depositPaid;
+                totalDepositsRefunded += depositReturned;
+                totalDepositHeld += depositHeld;
             });
+
+            // Net Income = (Total Rent Income + Deposits Collected) − Deposits Refunded
+            const netIncome = Math.max(0, (totalRentRevenue + totalDepositsCollected) - totalDepositsRefunded);
 
             // Calculate Today's Collection directly from /api/payments ledger
             const activeTodayTxns = payments.filter(t => !t.isVoided && t.status === 'Success' && t.date === today);
@@ -676,7 +695,10 @@ function initApp() {
                 todayCollections,
                 pendingRentDues,
                 totalRentRevenue,
-                totalDepositHeld
+                totalDepositsCollected,
+                totalDepositsRefunded,
+                totalDepositHeld,
+                netIncome
             };
 
             renderDashboardCards(metrics);
@@ -717,6 +739,7 @@ function initApp() {
         if (document.getElementById('stat-today-collection')) document.getElementById('stat-today-collection').textContent = '₹0';
         if (document.getElementById('stat-pending-payments')) document.getElementById('stat-pending-payments').textContent = '₹0';
         if (document.getElementById('stat-total-revenue')) document.getElementById('stat-total-revenue').textContent = '₹0';
+        if (document.getElementById('stat-net-income')) document.getElementById('stat-net-income').textContent = '₹0';
         if (document.getElementById('stat-deposits-held')) document.getElementById('stat-deposits-held').textContent = '₹0';
 
         const eventsContainer = document.getElementById('today-events-container');
@@ -765,6 +788,7 @@ function initApp() {
         if (document.getElementById('stat-today-collection')) document.getElementById('stat-today-collection').textContent = '₹0';
         if (document.getElementById('stat-pending-payments')) document.getElementById('stat-pending-payments').textContent = '₹0';
         if (document.getElementById('stat-total-revenue')) document.getElementById('stat-total-revenue').textContent = '₹0';
+        if (document.getElementById('stat-net-income')) document.getElementById('stat-net-income').textContent = '₹0';
         if (document.getElementById('stat-deposits-held')) document.getElementById('stat-deposits-held').textContent = '₹0';
 
         const eventsContainer = document.getElementById('today-events-container');
@@ -2894,6 +2918,9 @@ function initApp() {
             discount: document.getElementById('input-discount').value,
             extraCharges: document.getElementById('input-extraCharges').value,
             securityDeposit: document.getElementById('input-securityDeposit').value,
+            rentPaid: document.getElementById('input-rentPaid') ? document.getElementById('input-rentPaid').value : '0',
+            depositCollected: document.getElementById('input-depositCollected') ? document.getElementById('input-depositCollected').value : '0',
+            paymentMethod: document.getElementById('input-paymentMethod') ? document.getElementById('input-paymentMethod').value : 'Cash',
             notes: document.getElementById('input-notes').value
         };
 
@@ -2941,6 +2968,9 @@ function initApp() {
             document.getElementById('input-discount').value = '0';
             document.getElementById('input-extraCharges').value = '0';
             document.getElementById('input-securityDeposit').value = '0';
+            if (document.getElementById('input-rentPaid')) document.getElementById('input-rentPaid').value = '0';
+            if (document.getElementById('input-depositCollected')) document.getElementById('input-depositCollected').value = '0';
+            if (document.getElementById('input-paymentMethod')) document.getElementById('input-paymentMethod').value = 'Cash';
             conflictAlert.classList.add('d-none');
         }
     });
@@ -3111,6 +3141,8 @@ function initApp() {
                 document.getElementById('input-discount').value = contract.baseDiscount !== undefined ? contract.baseDiscount : 0;
                 document.getElementById('input-extraCharges').value = initialExtraVal;
                 document.getElementById('input-securityDeposit').value = contract.securityDeposit !== undefined ? contract.securityDeposit : 0;
+                if (document.getElementById('input-rentPaid')) document.getElementById('input-rentPaid').value = b.rentPaid !== undefined ? b.rentPaid : 0;
+                if (document.getElementById('input-depositCollected')) document.getElementById('input-depositCollected').value = b.depositCollected !== undefined ? b.depositCollected : 0;
                 document.getElementById('input-notes').value = b.notes || '';
 
                 conflictAlert.classList.add('d-none');
@@ -3534,12 +3566,22 @@ function initApp() {
             let computedPendingDues = 0;
             let computedRentRev = 0;
             let computedDepHeld = 0;
+            let computedDepositsColl = 0;
+            let computedDepositsRef = 0;
 
             activeBookings.forEach(b => {
                 const f = b.financial || {};
-                computedPendingDues += (f.remainingRent !== undefined ? f.remainingRent : 0);
-                computedRentRev += (f.netRentPaid !== undefined ? f.netRentPaid : 0);
-                computedDepHeld += (f.effectiveDepositHeld !== undefined ? f.effectiveDepositHeld : 0);
+                const rentPaid = (f.netRentPaid !== undefined ? f.netRentPaid : (b.rentPaid || 0));
+                const depositPaid = (f.depositPaid !== undefined ? f.depositPaid : (b.depositCollected || 0));
+                const depositReturned = (f.depositReturned !== undefined ? f.depositReturned : (b.depositRefunded || 0));
+                const depositHeld = (f.effectiveDepositHeld !== undefined ? f.effectiveDepositHeld : 0);
+                const remRent = (f.remainingRent !== undefined ? f.remainingRent : 0);
+
+                computedPendingDues += remRent;
+                computedRentRev += rentPaid;
+                computedDepositsColl += depositPaid;
+                computedDepositsRef += depositReturned;
+                computedDepHeld += depositHeld;
             });
 
             // Today's Payment Transactions
@@ -3572,6 +3614,8 @@ function initApp() {
             const totalRentRevenue = (stats.totalRentRevenue !== undefined) ? stats.totalRentRevenue : computedRentRev;
             const pendingRentDues = (stats.pendingRentDues !== undefined) ? stats.pendingRentDues : computedPendingDues;
             const totalDepositHeld = (stats.totalDepositHeld !== undefined) ? stats.totalDepositHeld : computedDepHeld;
+            const computedNetIncome = Math.max(0, (computedRentRev + computedDepositsColl) - computedDepositsRef);
+            const netIncome = (stats.netIncome !== undefined) ? stats.netIncome : computedNetIncome;
 
             // Update Primary KPI Cards
             const elToday = document.getElementById('overall-stat-today-coll');
@@ -3579,6 +3623,9 @@ function initApp() {
 
             const elRev = document.getElementById('overall-stat-total-rev');
             if (elRev) elRev.textContent = `₹${totalRentRevenue.toLocaleString()}`;
+
+            const elNetInc = document.getElementById('overall-stat-net-income');
+            if (elNetInc) elNetInc.textContent = `₹${netIncome.toLocaleString()}`;
 
             const elDues = document.getElementById('overall-stat-pending-dues');
             if (elDues) elDues.textContent = `₹${pendingRentDues.toLocaleString()}`;

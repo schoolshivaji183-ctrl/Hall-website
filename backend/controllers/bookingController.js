@@ -77,7 +77,7 @@ class BookingController {
      */
     static async createBooking(req, res) {
         try {
-            const { customerName, mobileNumber, eventName, hall, bookingDate, startTime, endTime, status, notes, hallRent, discount, extraCharges, securityDeposit, createdBy } = req.body;
+            const { customerName, mobileNumber, eventName, hall, bookingDate, startTime, endTime, status, notes, hallRent, discount, extraCharges, securityDeposit, rentPaid, depositCollected, paymentMethod, createdBy } = req.body;
 
             // Validation of required fields
             if (!customerName || !mobileNumber || !eventName || !hall || !bookingDate || !startTime || !endTime) {
@@ -122,6 +122,9 @@ class BookingController {
                 discount,
                 extraCharges,
                 securityDeposit,
+                rentPaid,
+                depositCollected,
+                paymentMethod,
                 createdBy: createdBy || 'Admin'
             });
 

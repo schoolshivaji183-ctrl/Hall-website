@@ -95,6 +95,9 @@ const bookingSchema = new mongoose.Schema({
         enum: ['Draft', 'Confirmed', 'Booked', 'Completed', 'Cancelled', 'Archived'],
         default: 'Confirmed'
     },
+    rentPaid: { type: Number, default: 0, min: 0 },
+    depositCollected: { type: Number, default: 0, min: 0 },
+    depositRefunded: { type: Number, default: 0, min: 0 },
     notes: { type: String, default: '' },
     requirements: { type: requirementsSubSchema, default: () => ({}) },
     contract: { type: contractSubSchema, default: () => ({}) },

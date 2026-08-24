@@ -59,7 +59,7 @@ class PaymentModel {
     /**
      * Create and record a new transaction in the ledger
      */
-    static createTransaction(data) {
+    static async createTransaction(data) {
         const BookingModel = require('./bookingModel');
         const currentYear = new Date().getFullYear();
         const receiptNumber = data.receiptNumber || this.generateReceiptNumber(currentYear);
@@ -88,9 +88,18 @@ class PaymentModel {
         transactionsStore.push(newTransaction);
 
         if (isConnected()) {
-            Payment.create(newTransaction).catch(err => {
+            try {
+                await Payment.create(newTransaction);
+            } catch (err) {
                 console.warn('⚠️  [MongoDB] Failed to persist transaction:', err.message);
-            });
+            }
+        }
+
+        // Keep Booking document in MongoDB Atlas & in-memory store synchronized with real-time financial totals
+        try {
+            await this.syncBookingFinancialFields(data.bookingId);
+        } catch (err) {
+            console.warn('⚠️  [MongoDB] Failed to sync financial totals to booking:', err.message);
         }
 
         try {
@@ -100,7 +109,7 @@ class PaymentModel {
                 category: 'Financial',
                 user: newTransaction.collectedBy
             });
-        } catch (e) {}
+        } catch (e) { }
 
         AuditModel.log({
             module: 'Payment Ledger',
@@ -122,9 +131,51 @@ class PaymentModel {
     }
 
     /**
+     * Synchronize rentPaid, depositCollected, and depositRefunded directly on the Booking document in Atlas & memory
+     */
+    static async syncBookingFinancialFields(bookingId) {
+        const BookingModel = require('./bookingModel');
+        const { Booking } = require('./schemas/BookingSchema');
+        if (!bookingId) return;
+
+        const summary = this.getBookingFinancialSummary(bookingId);
+        if (!summary) return;
+
+        const rentPaid = summary.netRentPaid || 0;
+        const depositCollected = summary.depositPaid || 0;
+        const depositRefunded = summary.depositReturned || 0;
+
+        // Update in-memory booking
+        const memBooking = BookingModel.findByIdSync(bookingId);
+        if (memBooking) {
+            memBooking.rentPaid = rentPaid;
+            memBooking.depositCollected = depositCollected;
+            memBooking.depositRefunded = depositRefunded;
+        }
+
+        // Update MongoDB Atlas
+        if (isConnected()) {
+            try {
+                await Booking.updateOne(
+                    { id: bookingId },
+                    {
+                        $set: {
+                            rentPaid,
+                            depositCollected,
+                            depositRefunded
+                        }
+                    }
+                );
+            } catch (err) {
+                console.warn('⚠️  [MongoDB] Failed to sync financial fields on booking:', err.message);
+            }
+        }
+    }
+
+    /**
      * VOID a payment receipt with mandatory reason and approver
      */
-    static voidTransaction(receiptNumber, voidReason, voidedBy = 'Admin') {
+    static async voidTransaction(receiptNumber, voidReason, voidedBy = 'Admin') {
         const BookingModel = require('./bookingModel');
         const memTxn = transactionsStore.find(t => t.receiptNumber === receiptNumber);
         if (!memTxn) {
@@ -138,19 +189,28 @@ class PaymentModel {
         memTxn.voidedAt = new Date().toISOString();
 
         if (isConnected()) {
-            Payment.updateOne(
-                { receiptNumber },
-                {
-                    $set: {
-                        isVoided: true,
-                        voidReason,
-                        voidedBy,
-                        voidedAt: new Date()
+            try {
+                await Payment.updateOne(
+                    { receiptNumber },
+                    {
+                        $set: {
+                            isVoided: true,
+                            voidReason,
+                            voidedBy,
+                            voidedAt: new Date()
+                        }
                     }
-                }
-            ).catch(err => {
+                );
+            } catch (err) {
                 console.warn('⚠️  [MongoDB] Failed to void transaction in DB:', err.message);
-            });
+            }
+        }
+
+        // Synchronize updated totals to Booking document in Atlas & memory
+        try {
+            await this.syncBookingFinancialFields(memTxn.bookingId);
+        } catch (err) {
+            console.warn('⚠️  [MongoDB] Failed to sync voided financial totals to booking:', err.message);
         }
 
         try {
@@ -160,7 +220,7 @@ class PaymentModel {
                 category: 'Financial',
                 user: voidedBy
             });
-        } catch (e) {}
+        } catch (e) { }
 
         AuditModel.log({
             module: 'Payment Ledger',
@@ -182,9 +242,20 @@ class PaymentModel {
     }
 
     /**
-     * Retrieve all transactions with optional filtering
+     * Retrieve all transactions with optional filtering.
+     * Syncs from MongoDB Atlas on each call to ensure fresh data.
      */
-    static findAll(filters = {}) {
+    static async findAll(filters = {}) {
+        // Sync from MongoDB Atlas to ensure in-memory store is up to date
+        if (isConnected()) {
+            try {
+                const docs = await Payment.find({}).lean();
+                transactionsStore = docs || [];
+            } catch (err) {
+                console.warn('⚠️  [MongoDB] Failed to query payments from Atlas:', err.message);
+            }
+        }
+
         let results = [...transactionsStore];
 
         if (filters.bookingId) {
@@ -230,11 +301,27 @@ class PaymentModel {
     }
 
     /**
+     * Remove all transactions for a specific booking (used when booking is permanently deleted)
+     */
+    static async deleteTransactionsByBookingId(bookingId) {
+        transactionsStore = transactionsStore.filter(t => t.bookingId !== bookingId);
+        if (isConnected()) {
+            try {
+                await Payment.deleteMany({ bookingId });
+            } catch (err) {
+                console.warn('⚠️  [MongoDB] Failed to delete transactions for booking:', err.message);
+            }
+        }
+    }
+
+    /**
      * Compute Real-time Financial Summary for a Booking (Sync & Async compatible)
      */
     static getBookingFinancialSummary(bookingId, bookingData = null, txnsData = null) {
         const BookingModel = require('./bookingModel');
-        const booking = bookingData || BookingModel.findById(bookingId);
+        // IMPORTANT: Use synchronous lookup — findById is async (returns Promise).
+        // Since this method is sync, we must use findByIdSync to read from in-memory store.
+        const booking = bookingData || BookingModel.findByIdSync(bookingId);
         if (!booking) return null;
 
         const transactions = txnsData || transactionsStore.filter(t => t.bookingId === bookingId && !t.isVoided);
@@ -290,7 +377,9 @@ class PaymentModel {
 
         const netRentPaid = Math.max(0, rentPaid - rentRefunded);
         const effectiveRentCovered = netRentPaid + depositAdjusted;
-        const effectiveDepositHeld = Math.max(0, depositPaid - depositReturned - depositForfeited - depositAdjusted);
+        // Security Deposit Held = Configured contract deposit (or collected deposit if higher),
+        // reduced by any returned, forfeited, or adjusted amounts. Fully DB-driven — no defaults.
+        const effectiveDepositHeld = Math.max(0, Math.max(securityDeposit, depositPaid) - depositReturned - depositForfeited - depositAdjusted);
 
         const remainingRent = Math.max(0, netRent - effectiveRentCovered);
         const remainingDepositDue = Math.max(0, securityDeposit - depositPaid);
@@ -324,15 +413,15 @@ class PaymentModel {
         }
 
         let depositStatus = 'Not Required';
-        if (securityDeposit === 0) {
+        if (securityDeposit === 0 && depositPaid === 0) {
             depositStatus = 'Not Required';
-        } else if (depositReturned >= depositPaid && depositPaid > 0) {
+        } else if (depositReturned >= depositPaid && depositPaid > 0 && effectiveDepositHeld === 0) {
             depositStatus = 'Deposit Returned';
-        } else if (depositForfeited >= depositPaid && depositPaid > 0) {
+        } else if (depositForfeited >= depositPaid && depositPaid > 0 && effectiveDepositHeld === 0) {
             depositStatus = 'Deposit Forfeited';
-        } else if (depositAdjusted >= depositPaid && depositPaid > 0) {
+        } else if (depositAdjusted >= depositPaid && depositPaid > 0 && effectiveDepositHeld === 0) {
             depositStatus = 'Deposit Adjusted';
-        } else if (effectiveDepositHeld >= securityDeposit && securityDeposit > 0) {
+        } else if (effectiveDepositHeld >= securityDeposit && effectiveDepositHeld > 0) {
             depositStatus = 'Deposit Held';
         } else if (effectiveDepositHeld > 0 && effectiveDepositHeld < securityDeposit) {
             depositStatus = 'Partial Deposit Held';
@@ -381,10 +470,13 @@ class PaymentModel {
             effectiveRentCovered,
             depositPaid,
             depositReturned,
+            depositCollected: depositPaid,
+            depositRefunded: depositReturned,
             depositForfeited,
             depositAdjusted,
             totalAmountPaid,
             totalRefunded,
+            netIncome: Math.max(0, (netRentPaid + depositPaid) - depositReturned),
 
             // Dues & Overpayments
             remainingRent,
@@ -411,7 +503,7 @@ class PaymentModel {
     /**
      * Process Deposit Management Actions
      */
-    static manageDeposit(bookingId, action, amount, remarks = '', collectedBy = 'Admin') {
+    static async manageDeposit(bookingId, action, amount, remarks = '', collectedBy = 'Admin') {
         const summary = this.getBookingFinancialSummary(bookingId);
         if (!summary) throw new Error('Booking not found.');
 
@@ -446,7 +538,7 @@ class PaymentModel {
             throw new Error('Invalid deposit action.');
         }
 
-        return this.createTransaction({
+        return await this.createTransaction({
             bookingId,
             amount: amt,
             type,
@@ -464,6 +556,16 @@ class PaymentModel {
     static async getFinancialStats() {
         const BookingModel = require('./bookingModel');
         const todayStr = getFormattedDate(0);
+
+        // Sync from MongoDB Atlas to ensure in-memory store is fresh
+        if (isConnected()) {
+            try {
+                const docs = await Payment.find({}).lean();
+                transactionsStore = docs || [];
+            } catch (err) {
+                console.warn('⚠️  [MongoDB] Failed to sync payments for stats:', err.message);
+            }
+        }
 
         const activeTxns = transactionsStore.filter(t => !t.isVoided && t.status === 'Success');
         const todayTxns = activeTxns.filter(t => t.date === todayStr);
@@ -504,23 +606,32 @@ class PaymentModel {
 
         const todayCollections = Math.max(0, cashCollection + upiCollection + cardCollection + otherCollection);
 
-        // Aggregate across all active bookings
+        // Aggregate across all ACTIVE bookings only (Cancelled/Archived are excluded from deposits held & dues)
         const allBookings = await BookingModel.findAll();
+        const activeBookings = allBookings.filter(b => b.status !== 'Cancelled' && b.status !== 'Archived');
         let totalRentRevenue = 0;
+        let totalDepositsCollected = 0;
+        let totalDepositsRefunded = 0;
         let totalDepositHeld = 0;
         let pendingRentDues = 0;
         let depositReturnedCount = 0;
 
-        allBookings.forEach(b => {
-            const s = this.getBookingFinancialSummary(b.id);
+        activeBookings.forEach(b => {
+            const s = this.getBookingFinancialSummary(b.id, b);
             if (!s) return;
 
-            totalRentRevenue += s.effectiveRentCovered;
+            // Total Rent Income = sum of actual net rent paid (rentPaid - rentRefunded) from DB
+            totalRentRevenue += s.netRentPaid;
+            totalDepositsCollected += s.depositPaid;
+            totalDepositsRefunded += s.depositReturned;
             totalDepositHeld += s.effectiveDepositHeld;
             pendingRentDues += s.remainingRent;
 
             if (s.depositStatus === 'Deposit Returned') depositReturnedCount++;
         });
+
+        // Net Income = (Total Rent Income + Deposits Collected) − Deposits Refunded
+        const netIncome = Math.max(0, (totalRentRevenue + totalDepositsCollected) - totalDepositsRefunded);
 
         return {
             todayCollections,
@@ -529,7 +640,11 @@ class PaymentModel {
             cardCollection,
             otherCollection,
             totalRentRevenue,
+            totalRentIncome: totalRentRevenue,
+            totalDepositsCollected,
+            totalDepositsRefunded,
             totalDepositHeld,
+            netIncome,
             pendingRentDues,
             depositReturnedCount,
             recentTransactions: activeTxns.slice(-6).reverse()

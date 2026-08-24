@@ -197,6 +197,15 @@ class BookingModel {
         return bookingsStore.find(b => b.id === id) || null;
     }
 
+    /**
+     * SYNCHRONOUS in-memory lookup by booking ID.
+     * Used by PaymentModel.getBookingFinancialSummary which is a sync method.
+     * Always reads from in-memory bookingsStore (already synced from MongoDB on startup and on every findAll call).
+     */
+    static findByIdSync(id) {
+        return bookingsStore.find(b => b.id === id) || null;
+    }
+
     static async addTimelineEvent(id, { title, description, category = 'General', user = 'Admin' }) {
         const now = new Date();
         const event = {
@@ -231,6 +240,10 @@ class BookingModel {
         const newId = `BOOK-${Math.floor(1000 + Math.random() * 9000)}`;
         const status = data.status || 'Confirmed';
 
+        const initialRentPaid = Number(data.rentPaid !== undefined ? data.rentPaid : (data.advancePaid !== undefined ? data.advancePaid : 0)) || 0;
+        const initialDepositCollected = Number(data.depositCollected !== undefined ? data.depositCollected : (data.securityDepositCollected !== undefined ? data.securityDepositCollected : 0)) || 0;
+        const contractSecurityDeposit = data.securityDeposit !== undefined && data.securityDeposit !== '' ? Number(data.securityDeposit) : (initialDepositCollected > 0 ? initialDepositCollected : 0);
+
         const newBooking = {
             id: newId,
             customerName: (data.customerName || '').trim(),
@@ -241,11 +254,14 @@ class BookingModel {
             startTime: data.startTime,
             endTime: data.endTime,
             status,
+            rentPaid: initialRentPaid,
+            depositCollected: initialDepositCollected,
+            depositRefunded: 0,
             notes: data.notes ? data.notes.trim() : '',
             requirements: data.requirements ? { ...buildDefaultRequirements(data), ...data.requirements } : buildDefaultRequirements(data),
             contract: {
                 hallRent: Number(data.hallRent) || 10000,
-                securityDeposit: data.securityDeposit !== undefined && data.securityDeposit !== '' ? Number(data.securityDeposit) : 0,
+                securityDeposit: contractSecurityDeposit,
                 baseDiscount: Number(data.discount) || 0,
                 discountsList: [],
                 extraChargesList: Number(data.extraCharges) > 0 ? [
@@ -293,13 +309,44 @@ class BookingModel {
                 { field: 'Event Purpose', oldVal: 'N/A', newVal: newBooking.eventName },
                 { field: 'Hall & Time Slot', oldVal: 'N/A', newVal: `${newBooking.hall} on ${newBooking.bookingDate} (${newBooking.startTime} - ${newBooking.endTime})` },
                 { field: 'Base Hall Rent', oldVal: 'N/A', newVal: `₹${newBooking.contract.hallRent.toLocaleString()}` },
-                { field: 'Security Deposit', oldVal: 'N/A', newVal: `₹${newBooking.contract.securityDeposit.toLocaleString()}` },
+                { field: 'Rent Paid at Creation', oldVal: 'N/A', newVal: `₹${initialRentPaid.toLocaleString()}` },
+                { field: 'Deposit Collected at Creation', oldVal: 'N/A', newVal: `₹${initialDepositCollected.toLocaleString()}` },
                 { field: 'Initial Status', oldVal: 'N/A', newVal: status }
             ],
             oldValue: 'N/A',
-            newValue: `Hall: ${newBooking.hall}, Rent: ₹${newBooking.contract.hallRent}, Status: ${status}`,
+            newValue: `Hall: ${newBooking.hall}, Rent: ₹${newBooking.contract.hallRent}, Paid: ₹${initialRentPaid}, Status: ${status}`,
             user: data.createdBy || 'Admin'
         });
+
+        const PaymentModel = require('./paymentModel');
+
+        // Automatically record initial rent payment transaction if collected at creation
+        if (initialRentPaid > 0) {
+            await PaymentModel.createTransaction({
+                bookingId: newId,
+                amount: initialRentPaid,
+                type: 'Rent Payment',
+                paymentMethod: data.paymentMethod || 'Cash',
+                collectedBy: data.createdBy || 'Admin',
+                referenceNumber: `RENT-RCV-${Math.floor(100 + Math.random() * 900)}`,
+                remarks: 'Rent collected during booking creation',
+                date: new Date().toISOString().split('T')[0]
+            });
+        }
+
+        // Automatically record initial security deposit transaction if collected at creation
+        if (initialDepositCollected > 0) {
+            await PaymentModel.createTransaction({
+                bookingId: newId,
+                amount: initialDepositCollected,
+                type: 'Security Deposit',
+                paymentMethod: data.paymentMethod || 'Cash',
+                collectedBy: data.createdBy || 'Admin',
+                referenceNumber: `DEP-RCV-${Math.floor(100 + Math.random() * 900)}`,
+                remarks: 'Security deposit collected during booking creation',
+                date: new Date().toISOString().split('T')[0]
+            });
+        }
 
         return newBooking;
     }
@@ -443,6 +490,23 @@ class BookingModel {
                 category: 'Booking',
                 user
             });
+        }
+
+        if (data.securityDeposit !== undefined && Number(data.securityDeposit) > 0) {
+            const PaymentModel = require('./paymentModel');
+            const existingDepositTxns = PaymentModel.getTransactionsByBookingId(id, false).filter(t => t.type === 'Security Deposit');
+            if (existingDepositTxns.length === 0) {
+                PaymentModel.createTransaction({
+                    bookingId: id,
+                    amount: Number(data.securityDeposit),
+                    type: 'Security Deposit',
+                    paymentMethod: 'Cash',
+                    collectedBy: data.updatedBy || 'Admin',
+                    referenceNumber: `DEP-RCV-${Math.floor(100 + Math.random() * 900)}`,
+                    remarks: 'Security deposit recorded during booking edit',
+                    date: updatedBooking.bookingDate || new Date().toISOString().split('T')[0]
+                });
+            }
         }
 
         return updatedBooking;
@@ -795,6 +859,9 @@ class BookingModel {
         if (memIdx !== -1) {
             bookingsStore.splice(memIdx, 1);
         }
+
+        const PaymentModel = require('./paymentModel');
+        await PaymentModel.deleteTransactionsByBookingId(id);
 
         if (isConnected()) {
             try {

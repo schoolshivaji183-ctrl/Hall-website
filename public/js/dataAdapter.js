@@ -126,9 +126,9 @@
                 }
 
                 const isEffective = (booking.status !== 'Cancelled' && booking.status !== 'Archived');
-                const netRentPaid = Number(fin.netRentPaid) || 0;
-                const netRent = Number(fin.netRent) || 0;
-                const remainingRent = Number(fin.remainingRent) || 0;
+                const netRentPaid = Number(fin.netRentPaid !== undefined ? fin.netRentPaid : (booking.rentPaid || 0));
+                const netRent = Number(fin.netRent !== undefined ? fin.netRent : (booking.contract ? booking.contract.hallRent : 0));
+                const remainingRent = Number(fin.remainingRent !== undefined ? fin.remainingRent : Math.max(0, netRent - netRentPaid));
 
                 if (isEffective) {
                     slot.revenue += netRentPaid;
