@@ -12,13 +12,18 @@ class BookingController {
      */
     static async getAllBookings(req, res) {
         try {
+            // Parallelize database synchronization
+            await Promise.all([
+                BookingModel.syncFromDB(),
+                PaymentModel.syncFromDB()
+            ]);
             const { search, date, hall, status } = req.query;
-            let bookings = await BookingModel.findAll({ search, date, hall, status });
+            let bookings = await BookingModel.findAll({ search, date, hall, status }, true);
 
             // Attach financial summary to each booking
             const enrichedBookings = [];
             for (const b of bookings) {
-                const financial = await PaymentModel.getBookingFinancialSummary(b.id);
+                const financial = await PaymentModel.getBookingFinancialSummary(b.id, b);
                 enrichedBookings.push({
                     ...b,
                     financial
@@ -52,7 +57,8 @@ class BookingController {
                 });
             }
 
-            const financial = await PaymentModel.getBookingFinancialSummary(booking.id);
+            await PaymentModel.syncFromDB();
+            const financial = await PaymentModel.getBookingFinancialSummary(booking.id, booking);
             const auditLogs = await AuditModel.findByBookingId(booking.id);
 
             return res.status(200).json({
@@ -161,7 +167,7 @@ class BookingController {
                 });
             }
 
-            const { customerName, mobileNumber, eventName, hall, bookingDate, startTime, endTime, status, notes, hallRent, discount, extraCharges, securityDeposit, updatedBy } = req.body;
+            const { customerName, mobileNumber, eventName, hall, bookingDate, startTime, endTime, status, notes, hallRent, discount, extraCharges, securityDeposit, rentPaid, depositCollected, paymentMethod, updatedBy } = req.body;
 
             const targetHall = hall || existing.hall;
             const targetDate = bookingDate || existing.bookingDate;
@@ -205,12 +211,15 @@ class BookingController {
                 discount,
                 extraCharges,
                 securityDeposit,
+                rentPaid,
+                depositCollected,
+                paymentMethod,
                 updatedBy: updatedBy || 'Admin'
             });
 
             const enriched = {
                 ...updated,
-                financial: await PaymentModel.getBookingFinancialSummary(id)
+                financial: PaymentModel.getBookingFinancialSummary(id, updated)
             };
 
             return res.status(200).json({

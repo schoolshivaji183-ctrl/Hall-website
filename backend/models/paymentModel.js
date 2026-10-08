@@ -24,16 +24,27 @@ const todayStr = getFormattedDate(0);
 
 // In-memory payment ledger synchronized with MongoDB Atlas
 let transactionsStore = [];
+let lastSyncTime = 0;
+const SYNC_CACHE_TTL_MS = 3000; // 3 seconds micro-cache window for fast parallel refreshes
 
 class PaymentModel {
+    static invalidateCache() {
+        lastSyncTime = 0;
+    }
+
     /**
      * Synchronize in-memory ledger with MongoDB Atlas
      */
-    static async syncFromDB() {
+    static async syncFromDB(force = false) {
+        const now = Date.now();
+        if (!force && transactionsStore.length > 0 && (now - lastSyncTime < SYNC_CACHE_TTL_MS)) {
+            return transactionsStore;
+        }
         if (isConnected()) {
             try {
                 const docs = await Payment.find({}).lean();
                 transactionsStore = docs || [];
+                lastSyncTime = now;
                 return transactionsStore;
             } catch (err) {
                 console.warn('⚠️  [MongoDB] Failed to sync payments from Atlas:', err.message);
@@ -245,15 +256,9 @@ class PaymentModel {
      * Retrieve all transactions with optional filtering.
      * Syncs from MongoDB Atlas on each call to ensure fresh data.
      */
-    static async findAll(filters = {}) {
-        // Sync from MongoDB Atlas to ensure in-memory store is up to date
-        if (isConnected()) {
-            try {
-                const docs = await Payment.find({}).lean();
-                transactionsStore = docs || [];
-            } catch (err) {
-                console.warn('⚠️  [MongoDB] Failed to query payments from Atlas:', err.message);
-            }
+    static async findAll(filters = {}, skipRemoteSync = false) {
+        if (!skipRemoteSync && isConnected()) {
+            await this.syncFromDB();
         }
 
         let results = [...transactionsStore];
@@ -377,16 +382,18 @@ class PaymentModel {
 
         const netRentPaid = Math.max(0, rentPaid - rentRefunded);
         const effectiveRentCovered = netRentPaid + depositAdjusted;
-        // Security Deposit Held = Configured contract deposit (or collected deposit if higher),
-        // reduced by any returned, forfeited, or adjusted amounts. Fully DB-driven — no defaults.
-        const effectiveDepositHeld = Math.max(0, Math.max(securityDeposit, depositPaid) - depositReturned - depositForfeited - depositAdjusted);
+        // Security Deposit Held = Actual collected/paid deposit in ledger,
+        // reduced by any returned, forfeited, or adjusted amounts. Fully DB-driven — no placeholders.
+        const effectiveDepositHeld = Math.max(0, depositPaid - depositReturned - depositForfeited - depositAdjusted);
 
-        const remainingRent = Math.max(0, netRent - effectiveRentCovered);
+        // Remaining Rent Due = based on direct rent payments only (netRentPaid).
+        // Deposit adjustments are tracked separately and do NOT reduce the user-facing rent due.
+        const remainingRent = Math.max(0, netRent - netRentPaid);
         const remainingDepositDue = Math.max(0, securityDeposit - depositPaid);
-        const overpaidAmount = Math.max(0, effectiveRentCovered - netRent);
+        const overpaidAmount = Math.max(0, netRentPaid - netRent);
 
-        const showDepositInContract = effectiveDepositHeld > 0;
-        const totalContractAmount = showDepositInContract ? (netRent + securityDeposit) : netRent;
+        const showDepositInContract = effectiveDepositHeld > 0 || depositPaid > 0;
+        const totalContractAmount = (securityDeposit > 0 || depositPaid > 0) ? (netRent + securityDeposit) : netRent;
         const remainingTotal = remainingRent + (showDepositInContract ? remainingDepositDue : 0);
 
         const totalAmountPaid = netRentPaid + depositPaid;
@@ -394,37 +401,41 @@ class PaymentModel {
 
         let paymentPercentage = 0;
         if (netRent > 0) {
-            paymentPercentage = Math.min(100, Math.round((effectiveRentCovered / netRent) * 100));
-        } else if (netRent === 0 && effectiveRentCovered >= 0) {
+            paymentPercentage = Math.min(100, Math.round((netRentPaid / netRent) * 100));
+        } else if (netRent === 0 && netRentPaid >= 0) {
             paymentPercentage = 100;
         }
 
         let paymentStatus = 'Pending';
         if (booking.status === 'Cancelled') {
             paymentStatus = 'Cancelled';
-        } else if (effectiveRentCovered >= netRent && netRent > 0 && overpaidAmount === 0) {
+        } else if (netRentPaid >= netRent && netRent > 0 && overpaidAmount === 0) {
             paymentStatus = 'Fully Paid';
         } else if (overpaidAmount > 0) {
             paymentStatus = 'Overpaid';
-        } else if (effectiveRentCovered > 0 && effectiveRentCovered < netRent) {
+        } else if (netRentPaid > 0 && netRentPaid < netRent) {
             paymentStatus = 'Partially Paid';
-        } else if (effectiveRentCovered === 0) {
+        } else if (netRentPaid === 0) {
             paymentStatus = 'Pending';
         }
 
+        // Deposit Status: determine based on actual deposit lifecycle operations
+        const depositSettled = depositReturned + depositForfeited + depositAdjusted;
         let depositStatus = 'Not Required';
         if (securityDeposit === 0 && depositPaid === 0) {
             depositStatus = 'Not Required';
-        } else if (depositReturned >= depositPaid && depositPaid > 0 && effectiveDepositHeld === 0) {
+        } else if (depositPaid > 0 && effectiveDepositHeld === 0 && depositReturned > 0) {
             depositStatus = 'Deposit Returned';
-        } else if (depositForfeited >= depositPaid && depositPaid > 0 && effectiveDepositHeld === 0) {
+        } else if (depositPaid > 0 && effectiveDepositHeld === 0 && depositForfeited > 0) {
             depositStatus = 'Deposit Forfeited';
-        } else if (depositAdjusted >= depositPaid && depositPaid > 0 && effectiveDepositHeld === 0) {
+        } else if (depositPaid > 0 && effectiveDepositHeld === 0 && depositAdjusted > 0) {
             depositStatus = 'Deposit Adjusted';
         } else if (effectiveDepositHeld >= securityDeposit && effectiveDepositHeld > 0) {
             depositStatus = 'Deposit Held';
         } else if (effectiveDepositHeld > 0 && effectiveDepositHeld < securityDeposit) {
             depositStatus = 'Partial Deposit Held';
+        } else if (depositPaid === 0 && securityDeposit > 0) {
+            depositStatus = 'Deposit Pending';
         } else {
             depositStatus = 'Deposit Pending';
         }
@@ -607,7 +618,7 @@ class PaymentModel {
         const todayCollections = Math.max(0, cashCollection + upiCollection + cardCollection + otherCollection);
 
         // Aggregate across all ACTIVE bookings only (Cancelled/Archived are excluded from deposits held & dues)
-        const allBookings = await BookingModel.findAll();
+        const allBookings = await BookingModel.findAll({}, true);
         const activeBookings = allBookings.filter(b => b.status !== 'Cancelled' && b.status !== 'Archived');
         let totalRentRevenue = 0;
         let totalDepositsCollected = 0;

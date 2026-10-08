@@ -32,6 +32,7 @@ class PaymentController {
     static async getBookingSummary(req, res) {
         try {
             const { bookingId } = req.params;
+            await PaymentModel.syncFromDB();
             const summary = await PaymentModel.getBookingFinancialSummary(bookingId);
             if (!summary) {
                 return res.status(404).json({

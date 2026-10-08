@@ -308,8 +308,7 @@
                             <div class="d-flex align-items-center justify-content-between gap-2">
                                 <div class="stat-content">
                                     <span class="stat-label">Total Rent Income</span>
-                                    <h4 class="stat-value text-primary mb-0" id="stat-total-revenue">₹0</h4>
-                                    <div class="small text-muted mt-1" style="font-size:0.75rem;">Net Income: <strong class="text-success" id="stat-net-income">₹0</strong></div>
+                                    <h4 class="stat-value text-primary" id="stat-total-revenue">₹0</h4>
                                 </div>
                                 <div class="stat-icon-box bg-primary-subtle text-primary"><i class="bi bi-graph-up-arrow fs-4"></i></div>
                             </div>
@@ -357,10 +356,13 @@
                         </div>
                     </div>
                 </div>
+            </div>
 
+            <!-- 2. BOOKINGS LIST VIEW -->
+            <div id="view-bookings" class="content-view d-none">
                 <!-- Section Divider / Header -->
-                <div class="d-flex justify-content-between align-items-center mt-4 mb-3 flex-wrap gap-2">
-                    <h6 class="fw-bold text-dark m-0"><i class="bi bi-table text-primary me-2"></i>Recent & Filtered Booking Ledger</h6>
+                <div class="d-flex justify-content-between align-items-center mt-2 mb-3 flex-wrap gap-2">
+                    <h6 class="fw-bold text-dark m-0"><i class="bi bi-table text-primary me-2"></i>Booking Management Ledger</h6>
                     <div class="d-flex align-items-center gap-2">
                         <span class="badge bg-light text-muted border small" id="filtered-count-badge">0 Bookings</span>
                     </div>
@@ -525,8 +527,7 @@
                             <div class="d-flex align-items-center justify-content-between gap-2">
                                 <div class="stat-content">
                                     <span class="stat-label">Total Rent Revenue</span>
-                                    <h4 class="stat-value text-primary mb-0" id="overall-stat-total-rev">₹0</h4>
-                                    <div class="small text-muted mt-1" style="font-size:0.75rem;">Net Income: <strong class="text-success" id="overall-stat-net-income">₹0</strong></div>
+                                    <h4 class="stat-value text-primary" id="overall-stat-total-rev">₹0</h4>
                                 </div>
                                 <div class="stat-icon-box bg-primary-subtle text-primary"><i class="bi bi-graph-up-arrow fs-4"></i></div>
                             </div>
@@ -1400,40 +1401,32 @@
                         <input type="time" class="form-control" id="input-endTime" required>
                     </div>
 
-                    <!-- FINANCIAL CONTRACT BREAKDOWN -->
-                    <div class="col-12"><hr class="my-1"><h6 class="fw-bold text-primary mb-0"><i class="bi bi-calculator me-2"></i>Financial Contract Details</h6></div>
+                    <!-- FINANCIAL CONTRACT & PAYMENT DETAILS -->
+                    <div class="col-12"><hr class="my-1"><h6 class="fw-bold text-primary mb-0"><i class="bi bi-calculator me-2"></i>Financial & Payment Details</h6></div>
 
-                    <div class="col-6 col-md-3">
+                    <div class="col-6 col-md-4">
                         <label for="input-hallRent" class="form-label fw-semibold">Hall Rent (₹) *</label>
-                        <input type="number" class="form-control" id="input-hallRent" placeholder="10000" min="0" required>
+                        <input type="number" class="form-control" id="input-hallRent" placeholder="10000" min="0" onwheel="event.preventDefault(); this.blur();" required>
                     </div>
 
-                    <div class="col-6 col-md-3">
-                        <label for="input-discount" class="form-label fw-semibold">Initial Discount (₹)</label>
-                        <input type="number" class="form-control" id="input-discount" placeholder="0" min="0" value="0">
+                    <div class="col-6 col-md-4">
+                        <label for="input-rentPaid" class="form-label fw-semibold text-success">Advance / Rent Paid (₹)</label>
+                        <input type="number" class="form-control border-success-subtle" id="input-rentPaid" placeholder="0 (e.g. 2000)" min="0" value="0" onwheel="event.preventDefault(); this.blur();">
                     </div>
 
-                    <div class="col-6 col-md-3">
+                    <div class="col-6 col-md-4">
+                        <label for="input-securityDeposit" class="form-label fw-semibold text-purple" style="color: #7c3aed;">Security Deposit (₹)</label>
+                        <input type="number" class="form-control" style="border-color: #ddd6fe;" id="input-securityDeposit" placeholder="0 (e.g. 2000)" min="0" value="0" onwheel="event.preventDefault(); this.blur();">
+                    </div>
+
+                    <div class="col-6 col-md-4">
+                        <label for="input-discount" class="form-label fw-semibold">Discount (₹)</label>
+                        <input type="number" class="form-control" id="input-discount" placeholder="0" min="0" value="0" onwheel="event.preventDefault(); this.blur();">
+                    </div>
+
+                    <div class="col-6 col-md-4">
                         <label for="input-extraCharges" class="form-label fw-semibold">Initial Extras (₹)</label>
-                        <input type="number" class="form-control" id="input-extraCharges" placeholder="0" min="0" value="0">
-                    </div>
-
-                    <div class="col-6 col-md-3">
-                        <label for="input-securityDeposit" class="form-label fw-semibold">Contract Deposit (₹) <span class="text-muted small fw-normal">(target)</span></label>
-                        <input type="number" class="form-control" id="input-securityDeposit" placeholder="0" min="0" value="0">
-                    </div>
-
-                    <!-- INITIAL PAYMENT COLLECTION (RECORDED AT BOOKING TIME) -->
-                    <div class="col-12"><hr class="my-1"><h6 class="fw-bold text-success mb-0"><i class="bi bi-cash-stack me-2"></i>Initial Payment Collection (Optional)</h6></div>
-
-                    <div class="col-6 col-md-4">
-                        <label for="input-rentPaid" class="form-label fw-semibold text-success">Rent Collected / Advance (₹)</label>
-                        <input type="number" class="form-control border-success-subtle" id="input-rentPaid" placeholder="0 (e.g. 2000)" min="0" value="0">
-                    </div>
-
-                    <div class="col-6 col-md-4">
-                        <label for="input-depositCollected" class="form-label fw-semibold text-purple" style="color: #7c3aed;">Deposit Collected (₹)</label>
-                        <input type="number" class="form-control" style="border-color: #ddd6fe;" id="input-depositCollected" placeholder="0 (e.g. 2000)" min="0" value="0">
+                        <input type="number" class="form-control" id="input-extraCharges" placeholder="0" min="0" value="0" onwheel="event.preventDefault(); this.blur();">
                     </div>
 
                     <div class="col-12 col-md-4">
@@ -1537,7 +1530,7 @@
                     </div>
                     <div class="col-12">
                         <label for="quick-charge-amount" class="form-label fw-semibold">Amount (₹) *</label>
-                        <input type="number" class="form-control" id="quick-charge-amount" placeholder="e.g. 500" min="1" required>
+                        <input type="number" class="form-control" id="quick-charge-amount" placeholder="e.g. 500" min="1" onwheel="event.preventDefault(); this.blur();" required>
                     </div>
                     <div class="col-12">
                         <label for="quick-charge-remarks" class="form-label fw-semibold">Remarks / Explanation</label>
@@ -1571,7 +1564,7 @@
                     <input type="hidden" id="quick-discount-target-id">
                     <div class="col-12">
                         <label for="quick-discount-amount" class="form-label fw-semibold">Discount Amount (₹) *</label>
-                        <input type="number" class="form-control" id="quick-discount-amount" placeholder="e.g. 1000" min="1" required>
+                        <input type="number" class="form-control" id="quick-discount-amount" placeholder="e.g. 1000" min="1" onwheel="event.preventDefault(); this.blur();" required>
                     </div>
                     <div class="col-12">
                         <label for="quick-discount-reason" class="form-label fw-semibold">Approval Reason *</label>
@@ -1655,7 +1648,7 @@
 
                     <div class="col-12 col-md-6">
                         <label for="pay-input-amount" class="form-label fw-semibold">Amount (₹) *</label>
-                        <input type="number" class="form-control" id="pay-input-amount" placeholder="e.g. 2000" min="1" required>
+                        <input type="number" class="form-control" id="pay-input-amount" placeholder="e.g. 2000" min="1" onwheel="event.preventDefault(); this.blur();" required>
                     </div>
 
                     <div class="col-12 col-md-6">
@@ -1730,7 +1723,7 @@
 
                     <div class="col-12">
                         <label for="dep-input-amount" class="form-label fw-semibold">Amount (₹) *</label>
-                        <input type="number" class="form-control" id="dep-input-amount" min="1" required>
+                        <input type="number" class="form-control" id="dep-input-amount" min="1" onwheel="event.preventDefault(); this.blur();" required>
                     </div>
 
                     <div class="col-12">
@@ -2075,9 +2068,9 @@
 <!-- Bootstrap 5 JS Bundle with Popper -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <!-- Client Data Adapter (LocalStorage & Day Slots Engine) -->
-<script src="js/dataAdapter.js"></script>
+<script src="js/dataAdapter.js?v=2.1"></script>
 <!-- Client App JavaScript -->
-<script src="js/app.js"></script>
+<script src="js/app.js?v=2.1"></script>
 
 </body>
 </html>

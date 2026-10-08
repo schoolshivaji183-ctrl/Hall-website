@@ -10,6 +10,16 @@ function initApp() {
     let currentView = 'dashboard';
     let editBookingId = null;
 
+    // Globally disable accidental mouse wheel value modifications on all numeric input fields
+    document.addEventListener('wheel', function(e) {
+        if (e.target && (e.target.type === 'number' || (e.target.tagName === 'INPUT' && e.target.getAttribute('type') === 'number'))) {
+            e.preventDefault();
+        }
+        if (document.activeElement && document.activeElement.type === 'number') {
+            document.activeElement.blur();
+        }
+    }, { passive: false });
+
     const STORAGE_SESSION_KEY = 'hall_auth_session_v2';
 
     // Helper functions for Session Persistence
@@ -2905,6 +2915,9 @@ function initApp() {
         e.preventDefault();
         conflictAlert.classList.add('d-none');
 
+        const secDepVal = document.getElementById('input-securityDeposit')?.value || '0';
+        const rentPaidVal = document.getElementById('input-rentPaid')?.value || '0';
+
         const bookingData = {
             customerName: document.getElementById('input-customerName').value,
             mobileNumber: document.getElementById('input-mobileNumber').value,
@@ -2917,9 +2930,8 @@ function initApp() {
             hallRent: document.getElementById('input-hallRent').value,
             discount: document.getElementById('input-discount').value,
             extraCharges: document.getElementById('input-extraCharges').value,
-            securityDeposit: document.getElementById('input-securityDeposit').value,
-            rentPaid: document.getElementById('input-rentPaid') ? document.getElementById('input-rentPaid').value : '0',
-            depositCollected: document.getElementById('input-depositCollected') ? document.getElementById('input-depositCollected').value : '0',
+            securityDeposit: secDepVal,
+            rentPaid: rentPaidVal,
             paymentMethod: document.getElementById('input-paymentMethod') ? document.getElementById('input-paymentMethod').value : 'Cash',
             notes: document.getElementById('input-notes').value
         };
@@ -2965,11 +2977,10 @@ function initApp() {
             document.getElementById('input-bookingDate').value = getTodayDateString();
             document.getElementById('input-status').value = 'Confirmed';
             document.getElementById('input-hallRent').value = '10000';
+            document.getElementById('input-rentPaid').value = '0';
+            document.getElementById('input-securityDeposit').value = '0';
             document.getElementById('input-discount').value = '0';
             document.getElementById('input-extraCharges').value = '0';
-            document.getElementById('input-securityDeposit').value = '0';
-            if (document.getElementById('input-rentPaid')) document.getElementById('input-rentPaid').value = '0';
-            if (document.getElementById('input-depositCollected')) document.getElementById('input-depositCollected').value = '0';
             if (document.getElementById('input-paymentMethod')) document.getElementById('input-paymentMethod').value = 'Cash';
             conflictAlert.classList.add('d-none');
         }
@@ -3140,9 +3151,8 @@ function initApp() {
                 document.getElementById('input-hallRent').value = contract.hallRent !== undefined ? contract.hallRent : 10000;
                 document.getElementById('input-discount').value = contract.baseDiscount !== undefined ? contract.baseDiscount : 0;
                 document.getElementById('input-extraCharges').value = initialExtraVal;
-                document.getElementById('input-securityDeposit').value = contract.securityDeposit !== undefined ? contract.securityDeposit : 0;
-                if (document.getElementById('input-rentPaid')) document.getElementById('input-rentPaid').value = b.rentPaid !== undefined ? b.rentPaid : 0;
-                if (document.getElementById('input-depositCollected')) document.getElementById('input-depositCollected').value = b.depositCollected !== undefined ? b.depositCollected : 0;
+                document.getElementById('input-securityDeposit').value = (b.financial && b.financial.depositPaid !== undefined) ? b.financial.depositPaid : (contract.securityDeposit !== undefined ? contract.securityDeposit : 0);
+                if (document.getElementById('input-rentPaid')) document.getElementById('input-rentPaid').value = (b.financial && b.financial.netRentPaid !== undefined) ? b.financial.netRentPaid : (b.rentPaid !== undefined ? b.rentPaid : 0);
                 document.getElementById('input-notes').value = b.notes || '';
 
                 conflictAlert.classList.add('d-none');

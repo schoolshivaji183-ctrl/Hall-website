@@ -9,6 +9,8 @@ const { Booking } = require('./schemas/BookingSchema');
 const { isConnected } = require('../config/db');
 const BookingValidator = require('../utils/bookingValidator');
 const AuditModel = require('./auditModel');
+const fs = require('fs');
+const path = require('path');
 
 // Helper to calculate date string formatted YYYY-MM-DD
 function getFormattedDate(offsetDays = 0) {
@@ -81,16 +83,27 @@ function buildDefaultRequirements(bookingData = {}) {
 
 // In-memory bookings store synchronized with MongoDB Atlas
 let bookingsStore = [];
+let lastSyncTime = 0;
+const SYNC_CACHE_TTL_MS = 3000; // 3 seconds micro-cache window for fast parallel refreshes
 
 class BookingModel {
+    static invalidateCache() {
+        lastSyncTime = 0;
+    }
+
     /**
      * Synchronize in-memory cache with MongoDB Atlas
      */
-    static async syncFromDB() {
+    static async syncFromDB(force = false) {
+        const now = Date.now();
+        if (!force && bookingsStore.length > 0 && (now - lastSyncTime < SYNC_CACHE_TTL_MS)) {
+            return bookingsStore;
+        }
         if (isConnected()) {
             try {
                 const docs = await Booking.find({}).lean();
                 bookingsStore = docs || [];
+                lastSyncTime = now;
                 return bookingsStore;
             } catch (err) {
                 console.warn('⚠️  [MongoDB] Failed to sync bookings from Atlas:', err.message);
@@ -132,17 +145,23 @@ class BookingModel {
         });
     }
 
-    static async findAll(filters = {}) {
-        if (isConnected()) {
-            try {
-                const docs = await Booking.find({}).lean();
-                bookingsStore = docs || [];
-            } catch (err) {
-                console.warn('⚠️  [MongoDB] Failed to query bookings from Atlas:', err.message);
-            }
+    static async findAll(filters = {}, skipRemoteSync = false) {
+        if (!skipRemoteSync && isConnected()) {
+            await this.syncFromDB();
         }
 
         let results = [...bookingsStore];
+        if (!isConnected() && results.length === 0) {
+            try {
+                const fallbackPath = path.join(__dirname, '..', 'data', 'sampleBookings.json');
+                const raw = fs.readFileSync(fallbackPath, 'utf8');
+                bookingsStore = JSON.parse(raw);
+                results = [...bookingsStore];
+                console.log('⚡ Loaded fallback sample bookings.');
+            } catch (e) {
+                console.warn('⚠️ Failed to load fallback bookings:', e.message);
+            }
+        }
 
         if (filters.search && filters.search.trim() !== '') {
             const query = filters.search.trim().toLowerCase();
@@ -219,7 +238,7 @@ class BookingModel {
             user
         };
 
-        const booking = this.findById(id);
+        const booking = this.findByIdSync(id);
         if (booking) {
             if (!booking.timeline) booking.timeline = [];
             booking.timeline.push(event);
@@ -241,8 +260,10 @@ class BookingModel {
         const status = data.status || 'Confirmed';
 
         const initialRentPaid = Number(data.rentPaid !== undefined ? data.rentPaid : (data.advancePaid !== undefined ? data.advancePaid : 0)) || 0;
-        const initialDepositCollected = Number(data.depositCollected !== undefined ? data.depositCollected : (data.securityDepositCollected !== undefined ? data.securityDepositCollected : 0)) || 0;
-        const contractSecurityDeposit = data.securityDeposit !== undefined && data.securityDeposit !== '' ? Number(data.securityDeposit) : (initialDepositCollected > 0 ? initialDepositCollected : 0);
+        const secDep = data.securityDeposit !== undefined && data.securityDeposit !== '' ? Number(data.securityDeposit) : 0;
+        const depCollRaw = (data.depositCollected !== undefined && data.depositCollected !== '' && !isNaN(Number(data.depositCollected))) ? Number(data.depositCollected) : null;
+        const initialDepositCollected = (depCollRaw !== null && depCollRaw > 0) ? depCollRaw : (secDep > 0 ? secDep : 0);
+        const contractSecurityDeposit = secDep > 0 ? secDep : initialDepositCollected;
 
         const newBooking = {
             id: newId,
@@ -352,7 +373,7 @@ class BookingModel {
     }
 
     static async update(id, data) {
-        let oldBooking = this.findById(id);
+        let oldBooking = await this.findById(id);
         if (!oldBooking) return null;
 
         const oldContract = oldBooking.contract || {};
@@ -492,28 +513,100 @@ class BookingModel {
             });
         }
 
-        if (data.securityDeposit !== undefined && Number(data.securityDeposit) > 0) {
-            const PaymentModel = require('./paymentModel');
-            const existingDepositTxns = PaymentModel.getTransactionsByBookingId(id, false).filter(t => t.type === 'Security Deposit');
-            if (existingDepositTxns.length === 0) {
-                PaymentModel.createTransaction({
+        const PaymentModel = require('./paymentModel');
+        const { Payment } = require('./schemas/PaymentSchema');
+
+        const newSecDep = data.securityDeposit !== undefined && data.securityDeposit !== '' 
+            ? Number(data.securityDeposit) 
+            : (data.depositCollected !== undefined && data.depositCollected !== '' ? Number(data.depositCollected) : null);
+
+        if (newSecDep !== null) {
+            const allDepositTxns = PaymentModel.getTransactionsByBookingId(id, false).filter(t => t.type === 'Security Deposit');
+            
+            if (allDepositTxns.length === 0 && newSecDep > 0) {
+                await PaymentModel.createTransaction({
                     bookingId: id,
-                    amount: Number(data.securityDeposit),
+                    amount: newSecDep,
                     type: 'Security Deposit',
-                    paymentMethod: 'Cash',
+                    paymentMethod: data.paymentMethod || 'Cash',
                     collectedBy: data.updatedBy || 'Admin',
                     referenceNumber: `DEP-RCV-${Math.floor(100 + Math.random() * 900)}`,
                     remarks: 'Security deposit recorded during booking edit',
                     date: updatedBooking.bookingDate || new Date().toISOString().split('T')[0]
                 });
+            } else if (allDepositTxns.length === 1) {
+                const depTxn = allDepositTxns[0];
+                depTxn.amount = newSecDep;
+                if (isConnected()) {
+                    try {
+                        await Payment.updateOne(
+                            { receiptNumber: depTxn.receiptNumber },
+                            { $set: { amount: newSecDep } }
+                        );
+                    } catch (err) {
+                        console.warn('⚠️ [MongoDB] Failed to update deposit transaction amount:', err.message);
+                    }
+                }
+            } else if (allDepositTxns.length > 1) {
+                const otherTotal = allDepositTxns.slice(1).reduce((sum, t) => sum + (t.amount || 0), 0);
+                const firstTxnAmt = Math.max(0, newSecDep - otherTotal);
+                allDepositTxns[0].amount = firstTxnAmt;
+                if (isConnected()) {
+                    try {
+                        await Payment.updateOne(
+                            { receiptNumber: allDepositTxns[0].receiptNumber },
+                            { $set: { amount: firstTxnAmt } }
+                        );
+                    } catch (err) {
+                        console.warn('⚠️ [MongoDB] Failed to update initial deposit transaction:', err.message);
+                    }
+                }
             }
+        }
+
+        // Also check if rentPaid was edited during booking edit
+        if (data.rentPaid !== undefined && data.rentPaid !== '') {
+            const newRentPaid = Number(data.rentPaid) || 0;
+            const allRentTxns = PaymentModel.getTransactionsByBookingId(id, false).filter(t => t.type === 'Rent Payment' || t.type === 'Advance');
+            if (allRentTxns.length === 0 && newRentPaid > 0) {
+                await PaymentModel.createTransaction({
+                    bookingId: id,
+                    amount: newRentPaid,
+                    type: 'Rent Payment',
+                    paymentMethod: data.paymentMethod || 'Cash',
+                    collectedBy: data.updatedBy || 'Admin',
+                    referenceNumber: `RENT-RCV-${Math.floor(100 + Math.random() * 900)}`,
+                    remarks: 'Rent payment recorded during booking edit',
+                    date: updatedBooking.bookingDate || new Date().toISOString().split('T')[0]
+                });
+            } else if (allRentTxns.length === 1) {
+                const rentTxn = allRentTxns[0];
+                rentTxn.amount = newRentPaid;
+                if (isConnected()) {
+                    try {
+                        await Payment.updateOne(
+                            { receiptNumber: rentTxn.receiptNumber },
+                            { $set: { amount: newRentPaid } }
+                        );
+                    } catch (err) {
+                        console.warn('⚠️ [MongoDB] Failed to update rent transaction amount:', err.message);
+                    }
+                }
+            }
+        }
+
+        // Synchronize updated financial fields on the Booking document in Atlas & memory
+        try {
+            await PaymentModel.syncBookingFinancialFields(id);
+        } catch (err) {
+            console.warn('⚠️ [MongoDB] Failed to sync financial totals after booking update:', err.message);
         }
 
         return updatedBooking;
     }
 
     static addExtraCharge(id, { category, amount, remarks, addedBy = 'Admin' }) {
-        const booking = this.findById(id);
+        const booking = this.findByIdSync(id);
         if (!booking) throw new Error('Booking not found.');
 
         const amt = Number(amount);
@@ -561,7 +654,7 @@ class BookingModel {
     }
 
     static addDiscount(id, { amount, reason, approvedBy = 'Admin' }) {
-        const booking = this.findById(id);
+        const booking = this.findByIdSync(id);
         if (!booking) throw new Error('Booking not found.');
 
         const amt = Number(amount);
@@ -609,7 +702,7 @@ class BookingModel {
     }
 
     static revertExtraCharge(id, chargeId, user = 'Admin') {
-        const booking = this.findById(id);
+        const booking = this.findByIdSync(id);
         if (!booking) throw new Error('Booking not found.');
 
         if (!booking.contract || !booking.contract.extraChargesList) {
@@ -651,7 +744,7 @@ class BookingModel {
     }
 
     static revertDiscount(id, discountId, user = 'Admin') {
-        const booking = this.findById(id);
+        const booking = this.findByIdSync(id);
         if (!booking) throw new Error('Booking not found.');
 
         if (!booking.contract || !booking.contract.discountsList) {
@@ -693,7 +786,7 @@ class BookingModel {
     }
 
     static async archive(id, user = 'Admin') {
-        const booking = this.findById(id);
+        const booking = await this.findById(id);
         if (!booking) return null;
 
         const oldStatus = booking.status;
@@ -730,10 +823,10 @@ class BookingModel {
     }
 
     static async unarchive(id, user = 'Admin') {
-        const booking = this.findById(id);
+        const booking = await this.findById(id);
         if (!booking) throw new Error('Booking not found.');
 
-        const conflict = this.checkConflict(booking.hall, booking.bookingDate, booking.startTime, booking.endTime, id, 'Confirmed');
+        const conflict = await this.checkConflict(booking.hall, booking.bookingDate, booking.startTime, booking.endTime, id, 'Confirmed');
         if (conflict) {
             throw new Error(`Cannot restore booking: Time slot (${booking.startTime} - ${booking.endTime}) on ${booking.bookingDate} for ${booking.hall} is currently occupied.`);
         }
@@ -772,7 +865,7 @@ class BookingModel {
     }
 
     static async cancel(id, user = 'Admin') {
-        const booking = this.findById(id);
+        const booking = await this.findById(id);
         if (!booking) return null;
 
         const oldStatus = booking.status;
@@ -809,10 +902,10 @@ class BookingModel {
     }
 
     static async uncancel(id, user = 'Admin') {
-        const booking = this.findById(id);
+        const booking = await this.findById(id);
         if (!booking) throw new Error('Booking not found.');
 
-        const conflict = this.checkConflict(booking.hall, booking.bookingDate, booking.startTime, booking.endTime, id, 'Confirmed');
+        const conflict = await this.checkConflict(booking.hall, booking.bookingDate, booking.startTime, booking.endTime, id, 'Confirmed');
         if (conflict) {
             throw new Error(`Cannot uncancel booking: Time slot (${booking.startTime} - ${booking.endTime}) on ${booking.bookingDate} for ${booking.hall} is currently occupied.`);
         }
@@ -1145,7 +1238,7 @@ class BookingModel {
 
     static async getStats() {
         const HallModel = require('./hallModel');
-        const allBookings = await this.findAll();
+        const allBookings = await this.findAll({}, true);
         const halls = await HallModel.findAll();
         const today = getFormattedDate(0);
 

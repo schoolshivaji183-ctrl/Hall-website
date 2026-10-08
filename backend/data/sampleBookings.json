@@ -1,0 +1,50 @@
+[
+  {
+    "id": "BOOK-1001",
+    "customerName": "Alice Smith",
+    "mobileNumber": "9876543210",
+    "eventName": "Wedding Reception",
+    "hall": "Hall 1",
+    "bookingDate": "2026-10-15",
+    "startTime": "10:00",
+    "endTime": "14:00",
+    "status": "Confirmed",
+    "rentPaid": 5000,
+    "depositCollected": 2000,
+    "depositRefunded": 0,
+    "notes": "Need floral decorations",
+    "requirements": {},
+    "contract": {
+      "hallRent": 5000,
+      "securityDeposit": 2000,
+      "baseDiscount": 0,
+      "discountsList": [],
+      "extraChargesList": []
+    },
+    "timeline": []
+  },
+  {
+    "id": "BOOK-1002",
+    "customerName": "Bob Johnson",
+    "mobileNumber": "9123456780",
+    "eventName": "Corporate Seminar",
+    "hall": "Hall 2",
+    "bookingDate": "2026-10-20",
+    "startTime": "09:00",
+    "endTime": "12:00",
+    "status": "Booked",
+    "rentPaid": 3000,
+    "depositCollected": 1000,
+    "depositRefunded": 0,
+    "notes": "",
+    "requirements": {},
+    "contract": {
+      "hallRent": 3000,
+      "securityDeposit": 1000,
+      "baseDiscount": 0,
+      "discountsList": [],
+      "extraChargesList": []
+    },
+    "timeline": []
+  }
+]

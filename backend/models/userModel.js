@@ -10,7 +10,28 @@ const bcrypt = require('bcryptjs');
 const { User } = require('./schemas/UserSchema');
 const { isConnected } = require('../config/db');
 
-let usersStore = [];
+const DEFAULT_USERS = [
+    {
+        username: "admin",
+        password: bcrypt.hashSync("admin123", 10),
+        name: "System Administrator",
+        email: "admin@hallmanager.edu",
+        role: "Admin",
+        department: "Estate & Operations",
+        isActive: true
+    },
+    {
+        username: "staff",
+        password: bcrypt.hashSync("staff123", 10),
+        name: "Staff Desk Officer",
+        email: "staff@hallmanager.edu",
+        role: "Staff",
+        department: "Facility Operations",
+        isActive: true
+    }
+];
+
+let usersStore = [...DEFAULT_USERS];
 
 class UserModel {
     /**
@@ -39,13 +60,19 @@ class UserModel {
 
     /**
      * Synchronize in-memory cache with MongoDB Atlas
-     * NOTE: Does NOT insert or seed any dummy records.
      */
     static async syncFromDB() {
         if (isConnected()) {
             try {
                 const docs = await User.find({}).lean();
-                usersStore = docs || [];
+                if (docs && docs.length > 0) {
+                    usersStore = docs;
+                } else {
+                    for (const u of DEFAULT_USERS) {
+                        await User.findOneAndUpdate({ username: u.username }, u, { upsert: true });
+                    }
+                    usersStore = [...DEFAULT_USERS];
+                }
                 return usersStore;
             } catch (err) {
                 console.warn('⚠️  [MongoDB] Failed to sync users from Atlas:', err.message);
@@ -58,7 +85,7 @@ class UserModel {
      * Clear local in-memory store (for testing/resets)
      */
     static clearStore() {
-        usersStore = [];
+        usersStore = [...DEFAULT_USERS];
     }
 
     /**

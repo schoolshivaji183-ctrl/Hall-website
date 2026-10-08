@@ -64,8 +64,8 @@ class HallModel {
     /**
      * Retrieve all active master halls
      */
-    static async findAll() {
-        if (isConnected()) {
+    static async findAll(forceRefresh = false) {
+        if ((forceRefresh || hallsStore.length === 0) && isConnected()) {
             try {
                 const docs = await Hall.find({ isActive: true }).lean();
                 if (docs && docs.length > 0) {

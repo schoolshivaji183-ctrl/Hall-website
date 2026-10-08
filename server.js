@@ -10,6 +10,11 @@ const PORT = process.env.PORT || 3000;
 
 // Initialize Database Connection
 connectDB();
+const BookingModel = require('./backend/models/bookingModel');
+const PaymentModel = require('./backend/models/paymentModel');
+// Ensure in‑memory bookings and payments are loaded at startup
+BookingModel.syncFromDB();
+PaymentModel.syncFromDB();
 
 // Middleware
 app.use(cors());
@@ -38,6 +43,15 @@ app.get('/staff*', (req, res) => {
 
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Global Error Handler (catches malformed JSON payloads and server errors)
+app.use((err, req, res, next) => {
+    if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+        return res.status(400).json({ success: false, message: 'Invalid JSON format in request body.' });
+    }
+    console.error('Unhandled Server Error:', err.message || err);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
 });
 
 // Start Server
